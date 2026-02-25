@@ -1,0 +1,29 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+
+interface Session {
+  clientId: string;
+  nickname: string | null;
+}
+
+export function useSession() {
+  const [session, setSession] = useState<Session>({ clientId: "", nickname: null });
+
+  useEffect(() => {
+    let clientId = localStorage.getItem("middlegame_client_id");
+    if (!clientId) {
+      clientId = crypto.randomUUID();
+      localStorage.setItem("middlegame_client_id", clientId);
+    }
+    const nickname = localStorage.getItem("middlegame_nickname");
+    setSession({ clientId, nickname });
+  }, []);
+
+  const setNickname = useCallback((name: string) => {
+    localStorage.setItem("middlegame_nickname", name);
+    setSession((s) => ({ ...s, nickname: name }));
+  }, []);
+
+  return { ...session, setNickname };
+}
