@@ -24,6 +24,35 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const supabaseRef = useRef(createClient());
+  const gameIdRef = useRef<string | null>(null);
+
+  // Full data fetch — used both on initial load and on reconnect
+  const fetchAllData = useCallback(async (gameId: string) => {
+    const supabase = supabaseRef.current;
+
+    const [gameRes, playersRes, roundsRes] = await Promise.all([
+      supabase.from("games").select("*").eq("id", gameId).single(),
+      supabase.from("players").select("*").eq("game_id", gameId).order("joined_at"),
+      supabase.from("rounds").select("*").eq("game_id", gameId).order("round_number"),
+    ]);
+
+    if (gameRes.data) setGame(gameRes.data as Game);
+    setPlayers((playersRes.data || []) as Player[]);
+    const roundsList = (roundsRes.data || []) as Round[];
+    setRounds(roundsList);
+
+    if (roundsList.length > 0) {
+      const roundIds = roundsList.map((r) => r.id);
+      const { data: subsData } = await supabase
+        .from("submissions")
+        .select("*")
+        .in("round_id", roundIds)
+        .order("submitted_at");
+      setSubmissions((subsData || []) as Submission[]);
+    } else {
+      setSubmissions([]);
+    }
+  }, []);
 
   // Initial data fetch
   useEffect(() => {
@@ -43,6 +72,8 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
         setLoading(false);
         return;
       }
+
+      gameIdRef.current = gameData.id;
       setGame(gameData as Game);
 
       // Fetch related data in parallel
@@ -76,13 +107,14 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
   useEffect(() => {
     if (!game) return;
     const supabase = supabaseRef.current;
+    const currentGameId = game.id;
 
     const channel = supabase
-      .channel(`game-${game.id}`)
+      .channel(`game-${currentGameId}`)
       // Game updates (status changes)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${game.id}` },
+        { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${currentGameId}` },
         (payload) => {
           setGame(payload.new as Game);
         }
@@ -90,7 +122,7 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
       // New players joining
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "players", filter: `game_id=eq.${game.id}` },
+        { event: "INSERT", schema: "public", table: "players", filter: `game_id=eq.${currentGameId}` },
         (payload) => {
           setPlayers((prev) => {
             const newPlayer = payload.new as Player;
@@ -102,7 +134,7 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
       // Round changes (new rounds or round updates with words)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "rounds", filter: `game_id=eq.${game.id}` },
+        { event: "INSERT", schema: "public", table: "rounds", filter: `game_id=eq.${currentGameId}` },
         (payload) => {
           setRounds((prev) => {
             const newRound = payload.new as Round;
@@ -113,32 +145,63 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "rounds", filter: `game_id=eq.${game.id}` },
+        { event: "UPDATE", schema: "public", table: "rounds", filter: `game_id=eq.${currentGameId}` },
         (payload) => {
           setRounds((prev) =>
             prev.map((r) => (r.id === (payload.new as Round).id ? (payload.new as Round) : r))
           );
         }
       )
-      // New submissions
+      // New submissions — no game-scoped filter available (round_id is FK, not game_id),
+      // so filter client-side by checking against known round IDs
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "submissions" },
         (payload) => {
           const sub = payload.new as Submission;
-          // Only add if the submission belongs to a round in this game
-          setSubmissions((prev) => {
-            if (prev.some((s) => s.id === sub.id)) return prev;
-            return [...prev, sub];
+          setRounds((currentRounds) => {
+            // Only add submission if its round belongs to this game
+            const belongsToGame = currentRounds.some((r) => r.id === sub.round_id);
+            if (belongsToGame) {
+              setSubmissions((prev) => {
+                if (prev.some((s) => s.id === sub.id)) return prev;
+                return [...prev, sub];
+              });
+            }
+            return currentRounds; // don't modify rounds
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          // Re-fetch all data on reconnect to catch any missed events
+          setTimeout(() => {
+            fetchAllData(currentGameId);
+          }, 1000);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [game?.id]);
+  }, [game?.id, fetchAllData]);
+
+  // Poll every 2s as a reliable fallback (Realtime may not be delivering events)
+  useEffect(() => {
+    const id = gameIdRef.current;
+    if (!id) return;
+    // Stop polling once game is finished
+    if (game?.status === "finished") return;
+
+    const interval = setInterval(() => {
+      // Only poll when tab is visible
+      if (document.visibilityState === "visible") {
+        fetchAllData(id);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [game?.id, game?.status, fetchAllData]);
 
   // Derive game state
   const currentRound = rounds.length > 0 ? rounds[rounds.length - 1] : null;

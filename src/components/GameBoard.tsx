@@ -14,15 +14,15 @@ interface GameBoardProps {
 export default function GameBoard({ rounds, players, playerColorMap, submissions }: GameBoardProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new rounds or round updates
+  // Auto-scroll to bottom when rounds or submissions change
   useEffect(() => {
-    if (rounds.length > 0) {
+    if (rounds.length > 0 || submissions.length > 0) {
       const timer = setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [rounds.length, rounds[rounds.length - 1]?.word2]);
+  }, [rounds.length, submissions.length, rounds[rounds.length - 1]?.word2]);
 
   // Only show rounds that have at least one submission
   const visibleRounds = rounds.filter((r) => r.word1 !== null || submissions.some((s) => s.round_id === r.id));
