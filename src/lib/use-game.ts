@@ -15,6 +15,7 @@ interface UseGameReturn {
   canSubmit: boolean;
   hasSubmittedThisRound: boolean;
   loading: boolean;
+  refresh: () => void;
 }
 
 export function useGame(gameCode: string, playerId: string | null): UseGameReturn {
@@ -187,21 +188,22 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
   }, [game?.id, fetchAllData]);
 
   // Poll every 2s as a reliable fallback (Realtime may not be delivering events)
+  // Keep polling when finished (but slower) to pick up next_game_code for rematch
   useEffect(() => {
     const id = gameIdRef.current;
     if (!id) return;
-    // Stop polling once game is finished
-    if (game?.status === "finished") return;
+    // Stop polling once rematch is ready (next_game_code set)
+    if (game?.next_game_code) return;
 
+    const delay = game?.status === "finished" ? 3000 : 2000;
     const interval = setInterval(() => {
-      // Only poll when tab is visible
       if (document.visibilityState === "visible") {
         fetchAllData(id);
       }
-    }, 2000);
+    }, delay);
 
     return () => clearInterval(interval);
-  }, [game?.id, game?.status, fetchAllData]);
+  }, [game?.id, game?.status, game?.next_game_code, fetchAllData]);
 
   // Derive game state
   const currentRound = rounds.length > 0 ? rounds[rounds.length - 1] : null;
@@ -235,6 +237,11 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
 
   const currentPlayer = players.find((p) => p.id === playerId) || null;
 
+  const refresh = useCallback(() => {
+    const id = gameIdRef.current;
+    if (id) fetchAllData(id);
+  }, [fetchAllData]);
+
   return {
     game,
     players,
@@ -246,5 +253,6 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
     canSubmit,
     hasSubmittedThisRound,
     loading,
+    refresh,
   };
 }

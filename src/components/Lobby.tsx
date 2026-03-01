@@ -46,19 +46,6 @@ export default function Lobby({ code, players, currentPlayerId, playerColorMap }
         />
       </div>
 
-      {/* Instructions */}
-      <div className="text-center animate-slide-up" style={{ animationDelay: "0.3s" }}>
-        <div className="bg-white/8 rounded-2xl px-6 py-4 border border-white/12 shadow-lg" dir="rtl">
-          <p className="text-white/60 text-sm font-medium">
-            <span>{"\u200Fשלחו מילה כדי להתחיל את המשחק"}</span>{" "}
-            <span>{"\u270F\uFE0F"}</span>
-          </p>
-          <p className="text-white/40 text-xs mt-1">
-            {"\u200Fכל שחקן יכול להתחיל..."}
-          </p>
-        </div>
-      </div>
-
       {/* Waiting animation */}
       <div className="flex gap-1.5 items-center text-white/40" dir="rtl">
         <span className="text-sm">ממתינים</span>

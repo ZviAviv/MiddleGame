@@ -12,6 +12,7 @@ interface InputAreaProps {
   isFinished: boolean;
   isLobby: boolean;
   roundNumber: number;
+  onSubmitted?: () => void;
 }
 
 export default function InputArea({
@@ -22,6 +23,7 @@ export default function InputArea({
   isFinished,
   isLobby,
   roundNumber,
+  onSubmitted,
 }: InputAreaProps) {
   const [word, setWord] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +64,8 @@ export default function InputArea({
 
     setJustSubmitted(true);
     setWord("");
+    // Trigger a refresh so the game state updates immediately
+    onSubmitted?.();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -110,7 +114,7 @@ export default function InputArea({
             disabled={!canSubmit || submitting}
             className="flex-1 min-w-0 rounded-2xl px-4 py-4 text-lg font-bold text-center
                        bg-white border-3 border-kahoot-purple/20 text-kahoot-purple-dark
-                       placeholder-kahoot-purple/30 outline-none
+                       placeholder-kahoot-purple/70 outline-none
                        transition-all duration-200
                        focus:border-kahoot-gold focus:shadow-[0_0_0_4px_rgba(255,215,0,0.3)]
                        disabled:opacity-30 disabled:cursor-not-allowed"

@@ -8,6 +8,7 @@ CREATE TABLE games (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code CHAR(4) NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'lobby' CHECK (status IN ('lobby', 'active', 'finished')),
+  next_game_code CHAR(4),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -70,6 +71,7 @@ CREATE POLICY "Anyone can update games" ON games FOR UPDATE USING (true);
 
 CREATE POLICY "Anyone can read players" ON players FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert players" ON players FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update players" ON players FOR UPDATE USING (true);
 
 CREATE POLICY "Anyone can read rounds" ON rounds FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert rounds" ON rounds FOR INSERT WITH CHECK (true);

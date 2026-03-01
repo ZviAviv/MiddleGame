@@ -2,6 +2,7 @@ export interface Game {
   id: string;
   code: string;
   status: "lobby" | "active" | "finished";
+  next_game_code: string | null;
   created_at: string;
 }
 

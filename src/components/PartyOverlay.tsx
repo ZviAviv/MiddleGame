@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { soundManager } from "@/lib/sounds";
+import { rematchGame } from "@/lib/game-actions";
 import type { Player, Round } from "@/types/game";
-import { PLAYER_COLORS } from "@/lib/utils";
 
 interface PartyOverlayProps {
   matchWord: string;
@@ -13,6 +13,7 @@ interface PartyOverlayProps {
   player2Id: string | null;
   rounds: Round[];
   playerColorMap: Map<string, string>;
+  gameCode: string;
 }
 
 function getRoundMessage(count: number): string {
@@ -21,63 +22,24 @@ function getRoundMessage(count: number): string {
   return "\u200Fהדרך הייתה שווה את זה\u200F!";
 }
 
-interface ScatteredCard {
-  text: string;
-  color: string;
-  x: number;
-  y: number;
-  rotation: number;
-  size: number;
-  delay: number;
-}
-
 export default function PartyOverlay({
   matchWord,
   players,
   player1Id,
   player2Id,
   rounds,
-  playerColorMap,
+  gameCode,
 }: PartyOverlayProps) {
   const router = useRouter();
   const [showNewGame, setShowNewGame] = useState(false);
   const [shaking, setShaking] = useState(false);
   const [partyStarted, setPartyStarted] = useState(false);
+  const [creatingRematch, setCreatingRematch] = useState(false);
   const confettiFired = useRef(false);
 
   const player1 = players.find((p) => p.id === player1Id);
   const player2 = players.find((p) => p.id === player2Id);
   const roundCount = rounds.length;
-
-  // Gather all words from all rounds for the scattered background cards
-  const scatteredCards = useMemo<ScatteredCard[]>(() => {
-    const cards: ScatteredCard[] = [];
-    rounds.forEach((r) => {
-      if (r.word1_raw || r.word1) {
-        cards.push({
-          text: r.word1_raw || r.word1 || "",
-          color: (r.player1_id && playerColorMap.get(r.player1_id)) || PLAYER_COLORS[0],
-          x: Math.random() * 80 + 10,
-          y: Math.random() * 70 + 10,
-          rotation: (Math.random() - 0.5) * 30,
-          size: 0.6 + Math.random() * 0.2,
-          delay: Math.random() * 1.5,
-        });
-      }
-      if (r.word2_raw || r.word2) {
-        cards.push({
-          text: r.word2_raw || r.word2 || "",
-          color: (r.player2_id && playerColorMap.get(r.player2_id)) || PLAYER_COLORS[1],
-          x: Math.random() * 80 + 10,
-          y: Math.random() * 70 + 10,
-          rotation: (Math.random() - 0.5) * 30,
-          size: 0.6 + Math.random() * 0.2,
-          delay: Math.random() * 1.5,
-        });
-      }
-    });
-    return cards;
-  }, [rounds, playerColorMap]);
 
   // Step 1: Show the match, Step 2: Party after 1.5s
   useEffect(() => {
@@ -151,32 +113,6 @@ export default function PartyOverlay({
                      ${shaking ? "animate-shake" : ""}`}
          role="dialog" aria-modal="true">
 
-      {/* Scattered card shapes background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {scatteredCards.map((card, i) => (
-          <div
-            key={i}
-            className="absolute animate-slide-up"
-            style={{
-              left: `${card.x}%`,
-              top: `${card.y}%`,
-              transform: `rotate(${card.rotation}deg) scale(${card.size})`,
-              opacity: 0.5,
-              animationDelay: `${card.delay}s`,
-            }}
-          >
-            <div
-              className="rounded-xl px-3 py-2 text-center shadow-md min-w-[60px]"
-              style={{ backgroundColor: card.color }}
-            >
-              <span className="text-sm font-bold text-white whitespace-nowrap">
-                {card.text}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Glow circle behind text */}
       <div className="absolute w-80 h-80 rounded-full bg-kahoot-gold/15 blur-3xl" />
 
@@ -223,19 +159,41 @@ export default function PartyOverlay({
         </p>
       </div>
 
-      {/* New game button */}
+      {/* Action buttons */}
       {showNewGame && (
-        <div className="animate-slide-up mt-8 z-10">
+        <div className="animate-slide-up mt-8 z-10 flex flex-col gap-3 w-full max-w-xs px-4">
+          <button
+            onClick={async () => {
+              setCreatingRematch(true);
+              const result = await rematchGame(gameCode);
+              if ("code" in result) {
+                router.push(`/game/${result.code}`);
+              }
+              setCreatingRematch(false);
+            }}
+            disabled={creatingRematch}
+            dir="rtl"
+            className="btn-3d w-full rounded-2xl px-8 py-4 text-xl font-bold
+                       bg-kahoot-green text-white
+                       hover:brightness-110 active:scale-[0.97]
+                       disabled:opacity-50
+                       transition-all duration-150"
+          >
+            {creatingRematch
+              ? "..."
+              : <span><span>{"\u200Fהמשיכו עם הקבוצה"}</span> <span>{"\u{1F91D}"}</span></span>
+            }
+          </button>
           <button
             onClick={() => router.push("/")}
             dir="rtl"
-            className="btn-3d rounded-2xl px-8 py-4 text-xl font-bold
-                       bg-kahoot-green text-white
-                       hover:brightness-110 active:scale-[0.97]
+            className="rounded-2xl px-8 py-3 text-base font-bold
+                       bg-white/10 text-white/70
+                       hover:bg-white/20 hover:text-white
+                       active:scale-[0.97]
                        transition-all duration-150"
           >
-            <span>{"\u200Fמשחק חדש\u200F?"}</span>{" "}
-            <span>{"\u{1F504}"}</span>
+            <span>{"\u200Fחזרה לדף הבית"}</span>
           </button>
         </div>
       )}

@@ -56,6 +56,37 @@ export async function joinGame(
   return { gameId: game.id, playerId: player.id };
 }
 
+export async function rematchGame(
+  oldGameCode: string
+): Promise<{ code: string } | { error: string }> {
+  const supabase = await createClient();
+
+  // Check if a rematch was already created for this game
+  const { data: oldGame } = await supabase
+    .from("games")
+    .select("id, next_game_code")
+    .eq("code", oldGameCode.trim())
+    .single();
+
+  if (oldGame?.next_game_code) {
+    return { code: oldGame.next_game_code.trim() };
+  }
+
+  // Create a new game
+  const result = await createGame();
+  if ("error" in result) return result;
+
+  // Store the new game code on the old game so all players can follow
+  if (oldGame) {
+    await supabase
+      .from("games")
+      .update({ next_game_code: result.code })
+      .eq("id", oldGame.id);
+  }
+
+  return { code: result.code };
+}
+
 export async function submitWord(
   gameId: string,
   playerId: string,

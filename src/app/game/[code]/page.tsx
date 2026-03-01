@@ -37,6 +37,7 @@ export default function GamePage() {
     canSubmit,
     hasSubmittedThisRound,
     loading,
+    refresh,
   } = useGame(code, playerId);
 
   // Build persistent player color map
@@ -57,6 +58,30 @@ export default function GamePage() {
   useEffect(() => {
     if (nickname) setNicknameInput(nickname);
   }, [nickname]);
+
+  // Auto-redirect when a rematch game is created (next_game_code appears)
+  useEffect(() => {
+    if (game?.next_game_code) {
+      router.push(`/game/${game.next_game_code.trim()}`);
+    }
+  }, [game?.next_game_code, router]);
+
+  // Auto-join if player has a saved nickname but no player ID for this game
+  useEffect(() => {
+    if (!playerId && !joining && nickname && clientId && game && game.status === "lobby") {
+      const doAutoJoin = async () => {
+        setJoining(true);
+        const result = await joinGame(code, nickname, clientId);
+        if (!("error" in result)) {
+          setPlayerId(result.playerId);
+          setGameId(result.gameId);
+          localStorage.setItem(`middlegame_player_${code}`, result.playerId);
+        }
+        setJoining(false);
+      };
+      doAutoJoin();
+    }
+  }, [playerId, joining, nickname, clientId, game?.status, code]);
 
   // Play sounds on events
   const prevPlayersCountRef = useState(0);
@@ -240,6 +265,7 @@ export default function GamePage() {
             isFinished={false}
             isLobby={true}
             roundNumber={0}
+            onSubmitted={refresh}
           />
         )}
       </div>
@@ -298,6 +324,7 @@ export default function GamePage() {
           player2Id={currentRound.player2_id}
           rounds={rounds}
           playerColorMap={playerColorMap}
+          gameCode={code}
         />
       )}
 
@@ -311,6 +338,7 @@ export default function GamePage() {
           isFinished={phase === "finished"}
           isLobby={false}
           roundNumber={currentRound?.round_number || 0}
+          onSubmitted={refresh}
         />
       )}
     </div>
