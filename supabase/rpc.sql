@@ -94,7 +94,15 @@ BEGIN
     FROM submissions
     WHERE round_id = v_round_id AND position = 1;
 
-    v_is_match := (v_other_word = p_word);
+    -- Fuzzy match: exact match OR Levenshtein distance <= 1 for words with 3+ chars
+    IF v_other_word = p_word THEN
+      v_is_match := true;
+    ELSIF length(v_other_word) >= 3 AND length(p_word) >= 3
+          AND levenshtein(v_other_word, p_word) <= 1 THEN
+      v_is_match := true;
+    ELSE
+      v_is_match := false;
+    END IF;
 
     UPDATE rounds
     SET word2 = p_word,
