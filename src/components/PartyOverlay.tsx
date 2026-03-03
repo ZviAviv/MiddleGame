@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { soundManager } from "@/lib/sounds";
-import { rematchGame } from "@/lib/game-actions";
+import { resetGame } from "@/lib/game-actions";
 import type { Player, Round } from "@/types/game";
 
 interface PartyOverlayProps {
@@ -34,7 +34,7 @@ export default function PartyOverlay({
   const [showNewGame, setShowNewGame] = useState(false);
   const [shaking, setShaking] = useState(false);
   const [partyStarted, setPartyStarted] = useState(false);
-  const [creatingRematch, setCreatingRematch] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const confettiFired = useRef(false);
 
   const player1 = players.find((p) => p.id === player1Id);
@@ -164,14 +164,11 @@ export default function PartyOverlay({
         <div className="animate-slide-up mt-8 z-10 flex flex-col gap-3 w-full max-w-xs px-4">
           <button
             onClick={async () => {
-              setCreatingRematch(true);
-              const result = await rematchGame(gameCode);
-              if ("code" in result) {
-                router.push(`/game/${result.code}`);
-              }
-              setCreatingRematch(false);
+              setResetting(true);
+              await resetGame(gameCode);
+              setResetting(false);
             }}
-            disabled={creatingRematch}
+            disabled={resetting}
             dir="rtl"
             className="btn-3d w-full rounded-2xl px-8 py-4 text-xl font-bold
                        bg-kahoot-green text-white
@@ -179,9 +176,9 @@ export default function PartyOverlay({
                        disabled:opacity-50
                        transition-all duration-150"
           >
-            {creatingRematch
+            {resetting
               ? "..."
-              : <span><span>{"\u200Fהמשיכו עם הקבוצה"}</span> <span>{"\u{1F91D}"}</span></span>
+              : <span><span>{"\u200F\u05E9\u05D7\u05E7\u05D5 \u05E9\u05D5\u05D1"}</span> <span>{"\u{1F91D}"}</span></span>
             }
           </button>
           <button

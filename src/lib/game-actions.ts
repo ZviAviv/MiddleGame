@@ -56,35 +56,44 @@ export async function joinGame(
   return { gameId: game.id, playerId: player.id };
 }
 
-export async function rematchGame(
-  oldGameCode: string
-): Promise<{ code: string } | { error: string }> {
+export async function resetGame(
+  gameCode: string
+): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
 
-  // Check if a rematch was already created for this game
-  const { data: oldGame } = await supabase
+  // Find the game
+  const { data: game, error: gameError } = await supabase
     .from("games")
-    .select("id, next_game_code")
-    .eq("code", oldGameCode.trim())
+    .select("id")
+    .eq("code", gameCode.trim())
     .single();
 
-  if (oldGame?.next_game_code) {
-    return { code: oldGame.next_game_code.trim() };
+  if (gameError || !game) return { error: "game_not_found" };
+
+  // Get all round IDs for this game
+  const { data: rounds } = await supabase
+    .from("rounds")
+    .select("id")
+    .eq("game_id", game.id);
+
+  // Delete submissions for those rounds
+  if (rounds && rounds.length > 0) {
+    const roundIds = rounds.map((r) => r.id);
+    await supabase.from("submissions").delete().in("round_id", roundIds);
   }
 
-  // Create a new game
-  const result = await createGame();
-  if ("error" in result) return result;
+  // Delete all rounds
+  await supabase.from("rounds").delete().eq("game_id", game.id);
 
-  // Store the new game code on the old game so all players can follow
-  if (oldGame) {
-    await supabase
-      .from("games")
-      .update({ next_game_code: result.code })
-      .eq("id", oldGame.id);
-  }
+  // Reset game status back to lobby
+  const { error: updateError } = await supabase
+    .from("games")
+    .update({ status: "lobby", next_game_code: null })
+    .eq("id", game.id);
 
-  return { code: result.code };
+  if (updateError) return { error: updateError.message };
+
+  return { success: true };
 }
 
 export async function submitWord(

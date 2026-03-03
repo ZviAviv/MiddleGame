@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGame } from "@/lib/use-game";
 import { useSession } from "@/lib/use-session";
@@ -13,6 +13,7 @@ import InputArea from "@/components/InputArea";
 import PlayerList from "@/components/PlayerList";
 import SoundToggle from "@/components/SoundToggle";
 import PartyOverlay from "@/components/PartyOverlay";
+import HowToPlay from "@/components/HowToPlay";
 
 export default function GamePage() {
   const params = useParams();
@@ -59,13 +60,6 @@ export default function GamePage() {
     if (nickname) setNicknameInput(nickname);
   }, [nickname]);
 
-  // Auto-redirect when a rematch game is created (next_game_code appears)
-  useEffect(() => {
-    if (game?.next_game_code) {
-      router.push(`/game/${game.next_game_code.trim()}`);
-    }
-  }, [game?.next_game_code, router]);
-
   // Auto-join if player has a saved nickname but no player ID for this game
   useEffect(() => {
     if (!playerId && !joining && nickname && clientId && game && game.status === "lobby") {
@@ -83,26 +77,32 @@ export default function GamePage() {
     }
   }, [playerId, joining, nickname, clientId, game?.status, code]);
 
+  const [showHelp, setShowHelp] = useState(false);
+
   // Play sounds on events
-  const prevPlayersCountRef = useState(0);
-  const prevRoundsRef = useState(0);
+  const prevPlayersCountRef = useRef(0);
+  const prevRoundsCountRef = useRef(0);
+  const lastSoundedRoundIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (players.length > prevPlayersCountRef[0] && prevPlayersCountRef[0] > 0) {
+    if (players.length > prevPlayersCountRef.current && prevPlayersCountRef.current > 0) {
       soundManager?.play("join");
     }
-    prevPlayersCountRef[0] = players.length;
+    prevPlayersCountRef.current = players.length;
   }, [players.length]);
 
+  const lastRound = rounds[rounds.length - 1];
+  const lastRoundWord2 = lastRound?.word2;
+
   useEffect(() => {
-    const lastRound = rounds[rounds.length - 1];
-    if (lastRound?.word2 && rounds.length >= prevRoundsRef[0]) {
+    if (lastRound?.word2 && lastSoundedRoundIdRef.current !== lastRound.id) {
       soundManager?.play("pop");
+      lastSoundedRoundIdRef.current = lastRound.id;
     }
-    if (rounds.length > prevRoundsRef[0]) {
-      prevRoundsRef[0] = rounds.length;
+    if (rounds.length > prevRoundsCountRef.current) {
+      prevRoundsCountRef.current = rounds.length;
     }
-  }, [rounds]);
+  }, [rounds.length, lastRoundWord2, lastRound?.id]);
 
   const handleCopyUrl = async () => {
     const url = typeof window !== "undefined"
@@ -201,7 +201,7 @@ export default function GamePage() {
             type="text"
             value={nicknameInput}
             onChange={(e) => setNicknameInput(e.target.value)}
-            placeholder={"\u200Fמה השם שלכם\u200F?"}
+            placeholder={"\u200F\u05D0\u05D9\u05DA \u05E7\u05D5\u05E8\u05D0\u05D9\u05DD \u05DC\u05DA\u200F?"}
             maxLength={20}
             onKeyDown={(e) => e.key === "Enter" && handleJoin()}
             className="w-full rounded-2xl px-5 py-4 text-lg font-bold text-center
@@ -243,9 +243,34 @@ export default function GamePage() {
     return (
       <div className="flex flex-col min-h-dvh">
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-2 bg-white/5 backdrop-blur-sm">
-          <SoundToggle />
-          <span className="text-xs text-white/30 font-mono" dir="ltr">{code}</span>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 backdrop-blur-sm">
+          <div className="flex items-center gap-1">
+            <SoundToggle />
+            <button
+              onClick={() => setShowHelp(true)}
+              className="text-xl p-2 rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors"
+              title={"\u05D0\u05D9\u05DA \u05DE\u05E9\u05D7\u05E7\u05D9\u05DD?"}
+            >
+              {"?"}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3" dir="rtl">
+            <span className="text-sm text-white/50 font-medium">{"\u200F\u05E7\u05D5\u05D3 \u05DE\u05E9\u05D7\u05E7"}</span>
+            <span className="text-lg font-black text-white tracking-wider" dir="ltr">{code}</span>
+            <button
+              onClick={handleCopyUrl}
+              className="text-sm font-bold text-kahoot-gold hover:text-white
+                         bg-white/10 hover:bg-white/20 rounded-full px-3 py-1
+                         transition-all duration-150"
+              dir="rtl"
+            >
+              {urlCopied
+                ? <span>{"\u200F\u05D4\u05D5\u05E2\u05EA\u05E7\u200F!"} <span>{"\u2713"}</span></span>
+                : <span>{"\u200F\u05E9\u05EA\u05E4\u05D5"} <span>{"\u{1F4CB}"}</span></span>
+              }
+            </button>
+          </div>
         </div>
 
         <Lobby
@@ -268,6 +293,7 @@ export default function GamePage() {
             onSubmitted={refresh}
           />
         )}
+        {showHelp && <HowToPlay onClose={() => setShowHelp(false)} />}
       </div>
     );
   }
@@ -277,7 +303,16 @@ export default function GamePage() {
     <div className="flex flex-col min-h-dvh">
       {/* Top bar — game code with share button */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 backdrop-blur-sm">
-        <SoundToggle />
+        <div className="flex items-center gap-1">
+          <SoundToggle />
+          <button
+            onClick={() => setShowHelp(true)}
+            className="text-xl p-2 rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors"
+            title={"\u05D0\u05D9\u05DA \u05DE\u05E9\u05D7\u05E7\u05D9\u05DD?"}
+          >
+            {"?"}
+          </button>
+        </div>
 
         <div className="flex items-center gap-3" dir="rtl">
           <span className="text-sm text-white/50 font-medium">{"\u200Fקוד משחק"}</span>
@@ -341,6 +376,7 @@ export default function GamePage() {
           onSubmitted={refresh}
         />
       )}
+      {showHelp && <HowToPlay onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

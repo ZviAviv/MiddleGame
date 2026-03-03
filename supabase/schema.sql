@@ -76,10 +76,12 @@ CREATE POLICY "Anyone can update players" ON players FOR UPDATE USING (true);
 CREATE POLICY "Anyone can read rounds" ON rounds FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert rounds" ON rounds FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anyone can update rounds" ON rounds FOR UPDATE USING (true);
+CREATE POLICY "Anyone can delete rounds" ON rounds FOR DELETE USING (true);
 
 CREATE POLICY "Anyone can read submissions" ON submissions FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert submissions" ON submissions FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anyone can update submissions" ON submissions FOR UPDATE USING (true);
+CREATE POLICY "Anyone can delete submissions" ON submissions FOR DELETE USING (true);
 
 -- ============================================
 -- Enable Realtime

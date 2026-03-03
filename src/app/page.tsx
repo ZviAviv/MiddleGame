@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/use-session";
 import { createGame, joinGame } from "@/lib/game-actions";
+import HowToPlay from "@/components/HowToPlay";
 
 type Mode = "home" | "join";
 
@@ -15,6 +16,7 @@ export default function LandingPage() {
   const [gameCode, setGameCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     if (savedNickname) setNickname(savedNickname);
@@ -103,7 +105,7 @@ export default function LandingPage() {
             type="text"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder={"\u200Fמה השם שלכם\u200F?"}
+            placeholder={"\u200F\u05D0\u05D9\u05DA \u05E7\u05D5\u05E8\u05D0\u05D9\u05DD \u05DC\u05DA\u200F?"}
             maxLength={20}
             className="w-full rounded-2xl px-5 py-4 text-lg font-bold text-center
                        bg-white/15 border-2 border-white/20 text-white
@@ -157,14 +159,16 @@ export default function LandingPage() {
               pattern="[0-9]*"
               value={gameCode}
               onChange={(e) => setGameCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              placeholder={"\u200Fקוד המשחק (4 ספרות)"}
+              placeholder={"\u200F\u05E7\u05D5\u05D3 \u05DE\u05E9\u05D7\u05E7 (4 \u05E1\u05E4\u05E8\u05D5\u05EA)"}
               maxLength={4}
-              className="w-full rounded-2xl px-5 py-4 text-2xl font-black text-center
-                         tracking-[0.3em] bg-white/15 border-2 border-white/20 text-white
+              className={`w-full rounded-2xl px-5 py-4 text-center
+                         bg-white/15 border-2 border-white/20 text-white
+                         placeholder:text-base placeholder:font-bold placeholder:tracking-normal
                          placeholder-white/40 outline-none
                          input-glow transition-all duration-200
-                         focus:border-kahoot-gold focus:bg-white/20"
-              dir="ltr"
+                         focus:border-kahoot-gold focus:bg-white/20
+                         ${gameCode ? "text-2xl font-black tracking-[0.3em]" : "text-base font-bold"}`}
+              dir={gameCode ? "ltr" : "rtl"}
             />
 
             <button
@@ -202,6 +206,18 @@ export default function LandingPage() {
           </div>
         )}
       </div>
+
+      {/* How to Play button */}
+      <button
+        onClick={() => setShowHelp(true)}
+        dir="rtl"
+        className="mt-6 text-white/50 hover:text-white/90 text-sm font-medium
+                   transition-colors duration-150 animate-slide-up"
+      >
+        <span>{"\u200F\u05D0\u05D9\u05DA \u05DE\u05E9\u05D7\u05E7\u05D9\u05DD\u200F?"}</span>
+      </button>
+
+      {showHelp && <HowToPlay onClose={() => setShowHelp(false)} />}
     </div>
   );
 }
