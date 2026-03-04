@@ -28,6 +28,7 @@ export default function PartyOverlay({
   player1Id,
   player2Id,
   rounds,
+  playerColorMap,
   gameCode,
 }: PartyOverlayProps) {
   const router = useRouter();
@@ -40,6 +41,15 @@ export default function PartyOverlay({
   const player1 = players.find((p) => p.id === player1Id);
   const player2 = players.find((p) => p.id === player2Id);
   const roundCount = rounds.length;
+
+  // First round starting words
+  const firstRound = rounds[0];
+  const startWord1 = firstRound?.word1_raw || firstRound?.word1;
+  const startWord2 = firstRound?.word2_raw || firstRound?.word2;
+  const startPlayer1 = players.find((p) => p.id === firstRound?.player1_id);
+  const startPlayer2 = players.find((p) => p.id === firstRound?.player2_id);
+  const startColor1 = playerColorMap.get(firstRound?.player1_id || "") || "#6c5ce7";
+  const startColor2 = playerColorMap.get(firstRound?.player2_id || "") || "#00b4d8";
 
   // Step 1: Show the match, Step 2: Party after 1.5s
   useEffect(() => {
@@ -125,16 +135,57 @@ export default function PartyOverlay({
         </h2>
       </div>
 
-      {/* The matching word */}
-      <div className="relative animate-bounce-in mt-4 z-10" style={{ animationDelay: "0.3s" }}>
-        <div className="bg-kahoot-gold rounded-3xl px-10 py-6
-                        shadow-[0_6px_0_rgba(0,0,0,0.3)]
-                        border-2 border-white/20
-                        animate-glow-pulse">
-          <span className="text-3xl font-black text-kahoot-purple-dark">
-            {matchWord}
-          </span>
+      {/* Starting words → matching word journey */}
+      <div className="relative mt-4 z-10 flex items-center justify-center gap-3 px-4 w-full max-w-sm">
+        {/* First round - word 1 */}
+        {startWord1 && (
+          <div className="animate-slide-up flex-shrink-0" style={{ animationDelay: "0.2s" }}>
+            <div
+              className="rounded-2xl px-3 py-4 text-center
+                         shadow-[0_4px_0_rgba(0,0,0,0.25)]
+                         min-h-[64px] flex flex-col items-center justify-center"
+              style={{ backgroundColor: startColor1 }}
+            >
+              <span className="text-sm font-bold text-white drop-shadow-sm break-words leading-tight">
+                {startWord1}
+              </span>
+            </div>
+            <p className="text-center text-xs text-white/40 mt-1 truncate">
+              {startPlayer1?.nickname || "?"}
+            </p>
+          </div>
+        )}
+
+        {/* The matching word (center, larger) */}
+        <div className="animate-bounce-in flex-shrink-0" style={{ animationDelay: "0.3s" }}>
+          <div className="bg-kahoot-gold rounded-3xl px-8 py-5
+                          shadow-[0_6px_0_rgba(0,0,0,0.3)]
+                          border-2 border-white/20
+                          animate-glow-pulse">
+            <span className="text-2xl font-black text-kahoot-purple-dark">
+              {matchWord}
+            </span>
+          </div>
         </div>
+
+        {/* First round - word 2 */}
+        {startWord2 && (
+          <div className="animate-slide-up flex-shrink-0" style={{ animationDelay: "0.4s" }}>
+            <div
+              className="rounded-2xl px-3 py-4 text-center
+                         shadow-[0_4px_0_rgba(0,0,0,0.25)]
+                         min-h-[64px] flex flex-col items-center justify-center"
+              style={{ backgroundColor: startColor2 }}
+            >
+              <span className="text-sm font-bold text-white drop-shadow-sm break-words leading-tight">
+                {startWord2}
+              </span>
+            </div>
+            <p className="text-center text-xs text-white/40 mt-1 truncate">
+              {startPlayer2?.nickname || "?"}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Round counter */}
