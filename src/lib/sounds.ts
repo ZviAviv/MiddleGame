@@ -1,6 +1,6 @@
 "use client";
 
-type SoundName = "pop" | "whoosh" | "join" | "party";
+type SoundName = "pop" | "whoosh" | "join" | "party" | "nudge";
 
 class SoundManager {
   private ctx: AudioContext | null = null;
@@ -50,6 +50,9 @@ class SoundManager {
           break;
         case "party":
           this.playParty(ctx);
+          break;
+        case "nudge":
+          this.playNudge(ctx);
           break;
       }
     } catch {
@@ -105,6 +108,12 @@ class SoundManager {
     // Friendly two-note ding
     this.playTone(ctx, 523, 0.15, 0);      // C5
     this.playTone(ctx, 659, 0.2, 0.08);    // E5
+  }
+
+  private playNudge(ctx: AudioContext) {
+    // Gentle two-tap alert — distinct from "join" and "pop"
+    this.playTone(ctx, 880, 0.12, 0);       // A5
+    this.playTone(ctx, 880, 0.12, 0.15);    // A5 again
   }
 
   private playParty(ctx: AudioContext) {

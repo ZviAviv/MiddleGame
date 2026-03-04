@@ -14,6 +14,7 @@ import PlayerList from "@/components/PlayerList";
 import SoundToggle from "@/components/SoundToggle";
 import PartyOverlay from "@/components/PartyOverlay";
 import HowToPlay from "@/components/HowToPlay";
+import Chat from "@/components/Chat";
 
 export default function GamePage() {
   const params = useParams();
@@ -103,6 +104,54 @@ export default function GamePage() {
       prevRoundsCountRef.current = rounds.length;
     }
   }, [rounds.length, lastRoundWord2, lastRound?.id]);
+
+  // Background tab notifications — nudge when new submissions arrive while tab is hidden
+  const bgSubmissionCountRef = useRef(submissions.length);
+  const titleFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const originalTitle = "\u05DE\u05E9\u05D7\u05E7 \u05D4\u05D0\u05DE\u05E6\u05E2";
+
+  // Clean up title flash on unmount
+  useEffect(() => {
+    return () => {
+      if (titleFlashRef.current) clearInterval(titleFlashRef.current);
+      document.title = originalTitle;
+    };
+  }, [originalTitle]);
+
+  // Stop flashing when tab becomes visible
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        if (titleFlashRef.current) {
+          clearInterval(titleFlashRef.current);
+          titleFlashRef.current = null;
+        }
+        document.title = originalTitle;
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [originalTitle]);
+
+  // Detect new submissions while tab is hidden
+  useEffect(() => {
+    if (submissions.length > bgSubmissionCountRef.current && bgSubmissionCountRef.current > 0) {
+      if (document.visibilityState === "hidden") {
+        // Play nudge sound
+        soundManager?.play("nudge");
+
+        // Flash document title
+        if (!titleFlashRef.current) {
+          let on = true;
+          titleFlashRef.current = setInterval(() => {
+            document.title = on ? "\u200F\u2757 \u05EA\u05D5\u05E8\u05DB\u05DD\u200F!" : originalTitle;
+            on = !on;
+          }, 1000);
+        }
+      }
+    }
+    bgSubmissionCountRef.current = submissions.length;
+  }, [submissions.length, originalTitle]);
 
   const handleCopyUrl = async () => {
     const url = typeof window !== "undefined"
@@ -349,6 +398,16 @@ export default function GamePage() {
         playerColorMap={playerColorMap}
         submissions={submissions}
       />
+
+      {/* Chat */}
+      {gameId && (
+        <Chat
+          gameId={gameId}
+          playerId={playerId}
+          players={players}
+          playerColorMap={playerColorMap}
+        />
+      )}
 
       {/* Party overlay when game is finished */}
       {phase === "finished" && currentRound?.is_match && (

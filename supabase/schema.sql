@@ -57,6 +57,17 @@ CREATE TABLE submissions (
 
 CREATE INDEX idx_submissions_round ON submissions(round_id);
 
+-- Chat messages
+CREATE TABLE chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  message TEXT NOT NULL CHECK (char_length(message) <= 200),
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_chat_messages_game ON chat_messages(game_id);
+
 -- ============================================
 -- Row Level Security (permissive — no auth)
 -- ============================================
@@ -83,6 +94,10 @@ CREATE POLICY "Anyone can insert submissions" ON submissions FOR INSERT WITH CHE
 CREATE POLICY "Anyone can update submissions" ON submissions FOR UPDATE USING (true);
 CREATE POLICY "Anyone can delete submissions" ON submissions FOR DELETE USING (true);
 
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can read chat_messages" ON chat_messages FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert chat_messages" ON chat_messages FOR INSERT WITH CHECK (true);
+
 -- ============================================
 -- Enable Realtime
 -- ============================================
@@ -90,3 +105,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE games;
 ALTER PUBLICATION supabase_realtime ADD TABLE players;
 ALTER PUBLICATION supabase_realtime ADD TABLE rounds;
 ALTER PUBLICATION supabase_realtime ADD TABLE submissions;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;

@@ -47,4 +47,12 @@ export interface SubmitResult {
   is_match?: boolean;
 }
 
+export interface ChatMessage {
+  id: string;
+  game_id: string;
+  player_id: string;
+  message: string;
+  sent_at: string;
+}
+
 export type GamePhase = "lobby" | "waiting_for_submissions" | "finished";

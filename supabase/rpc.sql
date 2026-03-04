@@ -57,8 +57,17 @@ BEGIN
   SELECT COUNT(*) INTO v_submission_count
   FROM submissions WHERE round_id = v_round_id;
 
-  -- If round already has 2 submissions, create a new round
+  -- If round already has 2 submissions, only allow players who submitted to the
+  -- completed round to start a new round. Reject submissions from players who
+  -- didn't participate in the completed round (their word is discarded).
   IF v_submission_count >= 2 THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM submissions
+      WHERE round_id = v_round_id AND player_id = p_player_id
+    ) THEN
+      RETURN jsonb_build_object('error', 'round_full');
+    END IF;
+
     INSERT INTO rounds (game_id, round_number)
     VALUES (p_game_id, v_current_round.round_number + 1)
     RETURNING * INTO v_current_round;

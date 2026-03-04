@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word game built with Next.js and Supabase. Two or more players submit words each round; if two players submit the same word, the game ends in a match. The UI follows a Kahoot-inspired visual style with RTL layout.
+MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word game built with Next.js and Supabase. Two or more players submit words each round; if two players submit the same or nearly identical word (fuzzy match via Levenshtein distance ≤ 1), the game ends in a match. The UI follows a Kahoot-inspired visual style with RTL layout.
 
 ## Commands
 
@@ -18,7 +18,7 @@ MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word
 **Stack:** Next.js 16 (App Router), React 19, Supabase (Postgres + Realtime), Tailwind CSS 4, TypeScript
 
 **Key patterns:**
-- **Server Actions** (`src/lib/game-actions.ts`): `createGame`, `joinGame`, `submitWord` — all game mutations go through Next.js `"use server"` functions that call Supabase server-side
+- **Server Actions** (`src/lib/game-actions.ts`): `createGame`, `joinGame`, `submitWord`, `resetGame` — all game mutations go through Next.js `"use server"` functions that call Supabase server-side
 - **Race-safe word submission**: The `submit_word` Postgres RPC (`supabase/rpc.sql`) uses `FOR UPDATE` row locking to serialize submissions per game. All game state transitions (lobby→active, creating rounds, detecting matches, active→finished) happen entirely inside this single atomic RPC — never in application code.
 - **Realtime sync** (`src/lib/use-game.ts`): The `useGame` hook subscribes to Supabase Realtime postgres_changes on games, players, rounds, and submissions tables — all UI updates are push-based
 - **Anonymous auth**: No Supabase auth — players identified by `client_id` (random UUID stored in localStorage). Player reconnection handled via upsert on `(game_id, client_id)`
@@ -32,6 +32,9 @@ MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word
 2. Each round holds exactly 2 submissions (position 1 and 2)
 3. When a round already has 2 submissions, the next call creates a new round
 4. If position-2 word matches position-1 word → `is_match = true`, game transitions to `finished`
+5. Match detection uses **fuzzy matching**: exact match OR Levenshtein distance ≤ 1 (for words with 3+ characters). Requires the `fuzzystrmatch` PostgreSQL extension.
+
+**Game reset flow:** When a match ends the game, players can play again with the same team. `resetGame` deletes all rounds/submissions for the game and resets status to `lobby`, keeping the same game code and players.
 
 **Word storage:** Each submission stores both `word` (normalized, used for matching) and `word_raw` (original typed text, used for display). Normalization strips Hebrew niqqud (U+0591–U+05C7), collapses whitespace, and lowercases.
 
@@ -50,10 +53,13 @@ MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word
 - `PartyOverlay` — full-screen celebration shown on match; uses `canvas-confetti` for 5-burst sequence, scattered word cards, and a timing sequence (overlay → party mode at 1.5s → "new game?" button at 3.5s)
 - `GamePin` / `ShareButton` — display and share the 4-digit game code
 - `SoundToggle` — 🔊/🔇 icon button that toggles `soundManager.muted`
+- `HowToPlay` — full-screen modal overlay with 4-step game instructions in Hebrew; accessible from home page ("?איך משחקים" button) and in-game (? icon button next to SoundToggle)
 
 ## Database
 
-Schema in `supabase/schema.sql`, RPC in `supabase/rpc.sql`. Four tables: `games`, `players`, `rounds`, `submissions`. All tables have permissive RLS (no auth) and are added to Supabase Realtime publication.
+Schema in `supabase/schema.sql`, RPC in `supabase/rpc.sql`. Four tables: `games`, `players`, `rounds`, `submissions`. All tables have permissive RLS (no auth, including DELETE policies for rounds/submissions to support game reset) and are added to Supabase Realtime publication. The `fuzzystrmatch` extension must be enabled for fuzzy word matching.
+
+**Important:** SQL changes in `schema.sql` and `rpc.sql` are tracked in Git but must be manually applied via the Supabase SQL Editor (Dashboard → SQL Editor → New query → paste → Run). There is no automated migration system.
 
 ## Environment Variables
 
