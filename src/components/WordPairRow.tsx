@@ -20,34 +20,16 @@ export default function WordPairRow({
   submissions,
   isLatest = false,
 }: WordPairRowProps) {
-  const player1 = players.find((p) => p.id === round.player1_id);
-  const player2 = players.find((p) => p.id === round.player2_id);
+  const roundSubs = submissions
+    .filter((s) => s.round_id === round.id)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 
-  const isComplete = round.word1 !== null && round.word2 !== null;
+  const isComplete = round.is_complete;
 
-  // Check if there are submissions for this round (for hidden card display)
-  const roundSubs = submissions.filter((s) => s.round_id === round.id);
-  const hasSub1 = roundSubs.some((s) => s.position === 1);
-  const hasSub2 = roundSubs.some((s) => s.position === 2);
-
-  // Player colors — use the submitting player's color, or fallback
-  const color1 = (round.player1_id && playerColorMap.get(round.player1_id)) || "#666";
-  const color2 = (round.player2_id && playerColorMap.get(round.player2_id)) || "#666";
-
-  // For unrevealed cards with a submission, try to get color from the submission's player
-  const sub1Color = hasSub1
-    ? (playerColorMap.get(roundSubs.find((s) => s.position === 1)?.player_id || "") || "#666")
-    : "#666";
-  const sub2Color = hasSub2
-    ? (playerColorMap.get(roundSubs.find((s) => s.position === 2)?.player_id || "") || "#666")
-    : "#666";
-
-  const sub1Player = hasSub1
-    ? players.find((p) => p.id === roundSubs.find((s) => s.position === 1)?.player_id)
-    : undefined;
-  const sub2Player = hasSub2
-    ? players.find((p) => p.id === roundSubs.find((s) => s.position === 2)?.player_id)
-    : undefined;
+  // The matching pair player IDs (only set when is_match is true)
+  const matchPlayerIds = round.is_match
+    ? new Set([round.player1_id, round.player2_id].filter(Boolean))
+    : new Set<string>();
 
   return (
     <div className={`flex flex-col items-center gap-2
@@ -62,33 +44,45 @@ export default function WordPairRow({
       </div>
 
       {/* Word cards */}
-      <div className="flex gap-3 items-start justify-center w-full px-4">
-        <WordCard
-          word={isComplete ? (round.word1_raw || round.word1) : null}
-          color={isComplete ? color1 : sub1Color}
-          revealed={isComplete && round.word1 !== null}
-          hasSubmission={hasSub1}
-          playerName={isComplete ? player1?.nickname : sub1Player?.nickname}
-          isMatch={round.is_match}
-          animationDelay={0}
-        />
-
-        {/* Connector dots */}
-        <div className="flex flex-col items-center self-center pt-2 gap-1">
-          <div className={`w-1.5 h-1.5 rounded-full ${isComplete ? "bg-white/30" : "bg-white/10 animate-pulse"}`} />
-          <div className={`w-1.5 h-1.5 rounded-full ${isComplete ? "bg-white/25" : "bg-white/10 animate-pulse"}`} style={{ animationDelay: "0.15s" }} />
-          <div className={`w-1.5 h-1.5 rounded-full ${isComplete ? "bg-white/20" : "bg-white/10 animate-pulse"}`} style={{ animationDelay: "0.3s" }} />
-        </div>
-
-        <WordCard
-          word={isComplete ? (round.word2_raw || round.word2) : null}
-          color={isComplete ? color2 : sub2Color}
-          revealed={isComplete && round.word2 !== null}
-          hasSubmission={hasSub2}
-          playerName={isComplete ? player2?.nickname : sub2Player?.nickname}
-          isMatch={round.is_match}
-          animationDelay={0.2}
-        />
+      <div className="flex gap-3 items-start justify-center w-full px-4 flex-wrap">
+        {isComplete ? (
+          // Revealed: show all submissions
+          roundSubs.map((sub, i) => (
+            <WordCard
+              key={sub.id}
+              word={sub.word_raw || sub.word}
+              color={playerColorMap.get(sub.player_id) || "#666"}
+              revealed={true}
+              hasSubmission={true}
+              playerName={players.find((p) => p.id === sub.player_id)?.nickname}
+              isMatch={round.is_match && matchPlayerIds.has(sub.player_id)}
+              animationDelay={i * 0.15}
+            />
+          ))
+        ) : (
+          // Not complete: show hidden cards for submitted + shimmer placeholder
+          <>
+            {roundSubs.map((sub) => (
+              <WordCard
+                key={sub.id}
+                word={null}
+                color={playerColorMap.get(sub.player_id) || "#666"}
+                revealed={false}
+                hasSubmission={true}
+                playerName={players.find((p) => p.id === sub.player_id)?.nickname}
+              />
+            ))}
+            {/* Show one shimmer placeholder if there are submissions but round isn't complete */}
+            {roundSubs.length > 0 && (
+              <WordCard
+                word={null}
+                color="#666"
+                revealed={false}
+                hasSubmission={false}
+              />
+            )}
+          </>
+        )}
       </div>
     </div>
   );

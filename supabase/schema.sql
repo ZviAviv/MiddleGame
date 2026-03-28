@@ -38,6 +38,7 @@ CREATE TABLE rounds (
   player1_id UUID REFERENCES players(id),
   player2_id UUID REFERENCES players(id),
   is_match BOOLEAN NOT NULL DEFAULT false,
+  is_complete BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(game_id, round_number)
 );

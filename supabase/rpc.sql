@@ -16,10 +16,16 @@ DECLARE
   v_game_status TEXT;
   v_current_round rounds%ROWTYPE;
   v_submission_count INT;
+  v_player_count INT;
   v_position INT;
   v_is_match BOOLEAN := false;
   v_round_id UUID;
-  v_other_word TEXT;
+  v_match_word TEXT;
+  v_match_word_raw TEXT;
+  v_match_player1_id UUID;
+  v_match_player2_id UUID;
+  v_sub1 RECORD;
+  v_sub2 RECORD;
 BEGIN
   -- Lock the game row to serialize all submissions for this game
   SELECT status INTO v_game_status
@@ -32,6 +38,15 @@ BEGIN
   IF v_game_status = 'finished' THEN
     RETURN jsonb_build_object('error', 'game_finished');
   END IF;
+
+  -- Count active players: only those who have submitted in a completed round.
+  -- For round 1 (no completed rounds yet), defaults to 2.
+  SELECT COUNT(DISTINCT s.player_id) INTO v_player_count
+  FROM submissions s
+  JOIN rounds r ON r.id = s.round_id
+  WHERE r.game_id = p_game_id AND r.is_complete = true;
+
+  v_player_count := GREATEST(2, v_player_count);
 
   -- Get the latest round for this game (with lock)
   SELECT * INTO v_current_round
@@ -57,17 +72,8 @@ BEGIN
   SELECT COUNT(*) INTO v_submission_count
   FROM submissions WHERE round_id = v_round_id;
 
-  -- If round already has 2 submissions, only allow players who submitted to the
-  -- completed round to start a new round. Reject submissions from players who
-  -- didn't participate in the completed round (their word is discarded).
-  IF v_submission_count >= 2 THEN
-    IF NOT EXISTS (
-      SELECT 1 FROM submissions
-      WHERE round_id = v_round_id AND player_id = p_player_id
-    ) THEN
-      RETURN jsonb_build_object('error', 'round_full');
-    END IF;
-
+  -- If round is complete (all players submitted), start a new round
+  IF v_submission_count >= v_player_count AND v_player_count > 0 THEN
     INSERT INTO rounds (game_id, round_number)
     VALUES (p_game_id, v_current_round.round_number + 1)
     RETURNING * INTO v_current_round;
@@ -90,34 +96,50 @@ BEGIN
   INSERT INTO submissions (round_id, player_id, word, word_raw, position)
   VALUES (v_round_id, p_player_id, p_word, p_word_raw, v_position);
 
-  -- Update the round based on position
-  IF v_position = 1 THEN
-    UPDATE rounds
-    SET word1 = p_word,
-        word1_raw = p_word_raw,
-        player1_id = p_player_id
-    WHERE id = v_round_id;
-  ELSIF v_position = 2 THEN
-    -- Get the first word to check for match
-    SELECT word INTO v_other_word
-    FROM submissions
-    WHERE round_id = v_round_id AND position = 1;
+  -- Re-count submissions after insertion
+  v_submission_count := v_submission_count + 1;
 
-    -- Fuzzy match: exact match OR Levenshtein distance <= 1 for words with 3+ chars
-    IF v_other_word = p_word THEN
-      v_is_match := true;
-    ELSIF length(v_other_word) >= 3 AND length(p_word) >= 3
-          AND levenshtein(v_other_word, p_word) <= 1 THEN
-      v_is_match := true;
-    ELSE
-      v_is_match := false;
-    END IF;
+  -- If all players have now submitted, check for matches among all pairs
+  IF v_submission_count >= v_player_count AND v_player_count > 0 THEN
+    -- Check all pairs of submissions for a match
+    FOR v_sub1 IN
+      SELECT * FROM submissions WHERE round_id = v_round_id ORDER BY position
+    LOOP
+      FOR v_sub2 IN
+        SELECT * FROM submissions WHERE round_id = v_round_id AND position > v_sub1.position ORDER BY position
+      LOOP
+        -- Fuzzy match: exact match OR Levenshtein distance <= 1 for words with 3+ chars
+        IF v_sub1.word = v_sub2.word THEN
+          v_is_match := true;
+        ELSIF length(v_sub1.word) >= 3 AND length(v_sub2.word) >= 3
+              AND levenshtein(v_sub1.word, v_sub2.word) <= 1 THEN
+          v_is_match := true;
+        END IF;
 
+        IF v_is_match THEN
+          v_match_word := v_sub1.word;
+          v_match_word_raw := v_sub1.word_raw;
+          v_match_player1_id := v_sub1.player_id;
+          v_match_player2_id := v_sub2.player_id;
+          EXIT; -- break inner loop
+        END IF;
+      END LOOP;
+
+      IF v_is_match THEN
+        EXIT; -- break outer loop
+      END IF;
+    END LOOP;
+
+    -- Update round: mark complete, and set match data if found
     UPDATE rounds
-    SET word2 = p_word,
-        word2_raw = p_word_raw,
-        player2_id = p_player_id,
-        is_match = v_is_match
+    SET is_complete = true,
+        is_match = v_is_match,
+        word1 = CASE WHEN v_is_match THEN v_match_word ELSE NULL END,
+        word1_raw = CASE WHEN v_is_match THEN v_match_word_raw ELSE NULL END,
+        player1_id = CASE WHEN v_is_match THEN v_match_player1_id ELSE NULL END,
+        word2 = CASE WHEN v_is_match THEN v_match_word ELSE NULL END,
+        word2_raw = CASE WHEN v_is_match THEN (SELECT word_raw FROM submissions WHERE round_id = v_round_id AND player_id = v_match_player2_id) ELSE NULL END,
+        player2_id = CASE WHEN v_is_match THEN v_match_player2_id ELSE NULL END
     WHERE id = v_round_id;
 
     -- If words match, game is finished!

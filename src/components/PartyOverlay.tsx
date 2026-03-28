@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { soundManager } from "@/lib/sounds";
 import { resetGame } from "@/lib/game-actions";
-import type { Player, Round } from "@/types/game";
+import type { Player, Round, Submission } from "@/types/game";
 
 interface PartyOverlayProps {
   matchWord: string;
@@ -12,6 +12,7 @@ interface PartyOverlayProps {
   player1Id: string | null;
   player2Id: string | null;
   rounds: Round[];
+  submissions: Submission[];
   playerColorMap: Map<string, string>;
   gameCode: string;
 }
@@ -28,6 +29,7 @@ export default function PartyOverlay({
   player1Id,
   player2Id,
   rounds,
+  submissions,
   playerColorMap,
   gameCode,
 }: PartyOverlayProps) {
@@ -42,14 +44,21 @@ export default function PartyOverlay({
   const player2 = players.find((p) => p.id === player2Id);
   const roundCount = rounds.length;
 
-  // First round starting words
+  // First round starting words — derive from submissions
   const firstRound = rounds[0];
-  const startWord1 = firstRound?.word1_raw || firstRound?.word1;
-  const startWord2 = firstRound?.word2_raw || firstRound?.word2;
-  const startPlayer1 = players.find((p) => p.id === firstRound?.player1_id);
-  const startPlayer2 = players.find((p) => p.id === firstRound?.player2_id);
-  const startColor1 = playerColorMap.get(firstRound?.player1_id || "") || "#6c5ce7";
-  const startColor2 = playerColorMap.get(firstRound?.player2_id || "") || "#00b4d8";
+  const firstRoundSubs = firstRound
+    ? submissions
+        .filter((s) => s.round_id === firstRound.id)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    : [];
+  const startSub1 = firstRoundSubs[0];
+  const startSub2 = firstRoundSubs[1];
+  const startWord1 = startSub1?.word_raw || startSub1?.word;
+  const startWord2 = startSub2?.word_raw || startSub2?.word;
+  const startPlayer1 = startSub1 ? players.find((p) => p.id === startSub1.player_id) : undefined;
+  const startPlayer2 = startSub2 ? players.find((p) => p.id === startSub2.player_id) : undefined;
+  const startColor1 = playerColorMap.get(startSub1?.player_id || "") || "#6c5ce7";
+  const startColor2 = playerColorMap.get(startSub2?.player_id || "") || "#00b4d8";
 
   // Step 1: Show the match, Step 2: Party after 1.5s
   useEffect(() => {

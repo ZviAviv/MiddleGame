@@ -40,6 +40,10 @@ MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word
 
 **GamePhase vs game.status:** `game.status` is `"lobby" | "active" | "finished"`. `GamePhase` (`src/types/game.ts`) maps `active` to `"waiting_for_submissions"` — these are not identical. `GamePhase` is client-only for UI routing; `game.status` is what the database stores.
 
+**In-game chat** (`src/lib/use-chat.ts`, `src/components/Chat.tsx`): Real-time chat per game room via `chat_messages` table. Uses Supabase Realtime subscription with unread count tracking. Chat panel toggles open/closed; unread badge shown when closed.
+
+**Rematch navigation**: Games have a `next_game_code` field. When players start a rematch, the old game links to the new game code so other players auto-navigate to it.
+
 **Sound effects** (`src/lib/sounds.ts`): Synthesized via Web Audio API (no audio files). Four sounds: `pop` (round revealed), `whoosh`, `join` (player joined), `party` (match!). Mute state persisted in localStorage as `middlegame_muted`. AudioContext is resumed on demand to satisfy iOS autoplay restrictions.
 
 ## Components
@@ -54,6 +58,7 @@ MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word
 - `GamePin` / `ShareButton` — display and share the 4-digit game code
 - `SoundToggle` — 🔊/🔇 icon button that toggles `soundManager.muted`
 - `HowToPlay` — full-screen modal overlay with 4-step game instructions in Hebrew; accessible from home page ("?איך משחקים" button) and in-game (? icon button next to SoundToggle)
+
 - `Chat` — slide-up in-game chat panel; shows unread badge on the toggle button; messages capped at 200 chars; backed by `useChat` hook (`src/lib/use-chat.ts`)
 
 ## Database
@@ -76,3 +81,5 @@ Required in `.env.local`:
 - Tailwind uses custom Kahoot-palette class names: `kahoot-blue`, `kahoot-green`, `kahoot-gold`, `kahoot-red`, `kahoot-pink`, `kahoot-yellow`. Button styles use the custom `btn-3d` class. The full theme (colors + animations) is defined via a `@theme` block in `src/app/globals.css` — there is no `tailwind.config.js`.
 - Custom animations in `globals.css`: `bounce-in`, `slide-up`, `shake`, `glow-pulse`, `float`, `pop-in`, `shimmer`, `gradient-shift`, `fade-scale-in`. All respect `prefers-reduced-motion`.
 - Font: Rubik (Google Fonts, Hebrew subsets, weights 400–900), loaded in `src/app/layout.tsx`.
+- Generated images: Favicon, Apple icon, and OpenGraph image are generated at build time via Next.js `ImageResponse` in `src/app/` — no static image files.
+- No test framework is configured. There are no automated tests.

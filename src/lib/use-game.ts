@@ -214,8 +214,8 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
   // Derive game state
   const currentRound = rounds.length > 0 ? rounds[rounds.length - 1] : null;
 
-  // A round is "complete" when both words are revealed
-  const isCurrentRoundComplete = !!(currentRound?.word1 && currentRound?.word2);
+  // A round is "complete" when all players have submitted
+  const isCurrentRoundComplete = !!currentRound?.is_complete;
 
   // If the current round is complete, players can submit again (goes to next round)
   const hasSubmittedThisRound = !!(

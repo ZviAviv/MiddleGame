@@ -25,6 +25,7 @@ export interface Round {
   player1_id: string | null;
   player2_id: string | null;
   is_match: boolean;
+  is_complete: boolean;
   created_at: string;
 }
 

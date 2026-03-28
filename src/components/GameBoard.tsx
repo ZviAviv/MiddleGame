@@ -22,10 +22,10 @@ export default function GameBoard({ rounds, players, playerColorMap, submissions
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [rounds.length, submissions.length, rounds[rounds.length - 1]?.word2]);
+  }, [rounds.length, submissions.length, rounds[rounds.length - 1]?.is_complete]);
 
   // Only show rounds that have at least one submission
-  const visibleRounds = rounds.filter((r) => r.word1 !== null || submissions.some((s) => s.round_id === r.id));
+  const visibleRounds = rounds.filter((r) => r.is_complete || submissions.some((s) => s.round_id === r.id));
 
   if (visibleRounds.length === 0) {
     return (

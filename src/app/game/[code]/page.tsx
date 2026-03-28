@@ -6,7 +6,7 @@ import { useGame } from "@/lib/use-game";
 import { useSession } from "@/lib/use-session";
 import { joinGame } from "@/lib/game-actions";
 import { soundManager } from "@/lib/sounds";
-import { buildPlayerColorMap } from "@/lib/utils";
+import { buildPlayerColorMap, normalizeWord } from "@/lib/utils";
 import Lobby from "@/components/Lobby";
 import GameBoard from "@/components/GameBoard";
 import InputArea from "@/components/InputArea";
@@ -93,17 +93,17 @@ export default function GamePage() {
   }, [players.length]);
 
   const lastRound = rounds[rounds.length - 1];
-  const lastRoundWord2 = lastRound?.word2;
+  const lastRoundComplete = lastRound?.is_complete;
 
   useEffect(() => {
-    if (lastRound?.word2 && lastSoundedRoundIdRef.current !== lastRound.id) {
+    if (lastRound?.is_complete && lastSoundedRoundIdRef.current !== lastRound.id) {
       soundManager?.play("pop");
       lastSoundedRoundIdRef.current = lastRound.id;
     }
     if (rounds.length > prevRoundsCountRef.current) {
       prevRoundsCountRef.current = rounds.length;
     }
-  }, [rounds.length, lastRoundWord2, lastRound?.id]);
+  }, [rounds.length, lastRoundComplete, lastRound?.id]);
 
   // Background tab notifications — nudge when new submissions arrive while tab is hidden
   const bgSubmissionCountRef = useRef(submissions.length);
@@ -289,6 +289,12 @@ export default function GamePage() {
 
   const isCurrentRoundComplete = !!(currentRound?.word1 && currentRound?.word2);
 
+  // Set of normalized words already used in this game (for duplicate prevention)
+  const usedWords = useMemo(
+    () => new Set(submissions.map((s) => normalizeWord(s.word))),
+    [submissions]
+  );
+
   // Lobby phase
   if (phase === "lobby") {
     return (
@@ -342,6 +348,7 @@ export default function GamePage() {
             isLobby={true}
             roundNumber={0}
             isRoundComplete={false}
+            usedWords={usedWords}
             onSubmitted={refresh}
           />
         )}
@@ -420,6 +427,7 @@ export default function GamePage() {
           player1Id={currentRound.player1_id}
           player2Id={currentRound.player2_id}
           rounds={rounds}
+          submissions={submissions}
           playerColorMap={playerColorMap}
           gameCode={code}
         />
@@ -436,6 +444,7 @@ export default function GamePage() {
           isLobby={false}
           roundNumber={currentRound?.round_number || 0}
           isRoundComplete={isCurrentRoundComplete}
+          usedWords={usedWords}
           onSubmitted={refresh}
         />
       )}
