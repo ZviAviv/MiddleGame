@@ -54,10 +54,11 @@ MiddleGame (משחק האמצע) is a Hebrew-language real-time multiplayer word
 - `GamePin` / `ShareButton` — display and share the 4-digit game code
 - `SoundToggle` — 🔊/🔇 icon button that toggles `soundManager.muted`
 - `HowToPlay` — full-screen modal overlay with 4-step game instructions in Hebrew; accessible from home page ("?איך משחקים" button) and in-game (? icon button next to SoundToggle)
+- `Chat` — slide-up in-game chat panel; shows unread badge on the toggle button; messages capped at 200 chars; backed by `useChat` hook (`src/lib/use-chat.ts`)
 
 ## Database
 
-Schema in `supabase/schema.sql`, RPC in `supabase/rpc.sql`. Four tables: `games`, `players`, `rounds`, `submissions`. All tables have permissive RLS (no auth, including DELETE policies for rounds/submissions to support game reset) and are added to Supabase Realtime publication. The `fuzzystrmatch` extension must be enabled for fuzzy word matching.
+Schema in `supabase/schema.sql`, RPC in `supabase/rpc.sql`. Five tables: `games`, `players`, `rounds`, `submissions`, `chat_messages`. All tables have permissive RLS (no auth, including DELETE policies for rounds/submissions to support game reset) and are added to Supabase Realtime publication. The `fuzzystrmatch` extension must be enabled for fuzzy word matching.
 
 **Important:** SQL changes in `schema.sql` and `rpc.sql` are tracked in Git but must be manually applied via the Supabase SQL Editor (Dashboard → SQL Editor → New query → paste → Run). There is no automated migration system.
 

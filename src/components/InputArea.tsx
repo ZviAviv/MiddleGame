@@ -12,6 +12,7 @@ interface InputAreaProps {
   isFinished: boolean;
   isLobby: boolean;
   roundNumber: number;
+  isRoundComplete: boolean;
   onSubmitted?: () => void;
 }
 
@@ -23,6 +24,7 @@ export default function InputArea({
   isFinished,
   isLobby,
   roundNumber,
+  isRoundComplete,
   onSubmitted,
 }: InputAreaProps) {
   const [word, setWord] = useState("");
@@ -42,6 +44,20 @@ export default function InputArea({
     }
     prevCanSubmitRef.current = canSubmit;
   }, [canSubmit]);
+
+  // Clear waiting state when the current round completes (both words submitted).
+  // This is the primary fix for the second-to-submit player: React 18 batches
+  // the submission INSERT and round UPDATE events into one render, so canSubmit
+  // never transitions false→true for them, leaving justSubmitted stuck.
+  useEffect(() => {
+    if (isRoundComplete && justSubmitted) {
+      setJustSubmitted(false);
+      setWord("");
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 300);
+    }
+  }, [isRoundComplete, justSubmitted]);
 
   if (isFinished) return null;
 

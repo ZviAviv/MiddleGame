@@ -287,6 +287,8 @@ export default function GamePage() {
     ? submissions.filter((s) => s.round_id === currentRound.id)
     : [];
 
+  const isCurrentRoundComplete = !!(currentRound?.word1 && currentRound?.word2);
+
   // Lobby phase
   if (phase === "lobby") {
     return (
@@ -339,6 +341,7 @@ export default function GamePage() {
             isFinished={false}
             isLobby={true}
             roundNumber={0}
+            isRoundComplete={false}
             onSubmitted={refresh}
           />
         )}
@@ -432,6 +435,7 @@ export default function GamePage() {
           isFinished={phase === "finished"}
           isLobby={false}
           roundNumber={currentRound?.round_number || 0}
+          isRoundComplete={isCurrentRoundComplete}
           onSubmitted={refresh}
         />
       )}

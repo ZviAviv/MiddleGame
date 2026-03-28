@@ -155,7 +155,14 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
         { event: "UPDATE", schema: "public", table: "rounds", filter: `game_id=eq.${currentGameId}` },
         (payload) => {
           setRounds((prev) =>
-            prev.map((r) => (r.id === (payload.new as Round).id ? (payload.new as Round) : r))
+            prev.map((r) => {
+              if (r.id !== (payload.new as Round).id) return r;
+              const incoming = payload.new as Round;
+              // Don't let a stale event erase words already known to the client
+              const curWords = (r.word1 !== null ? 1 : 0) + (r.word2 !== null ? 1 : 0);
+              const newWords = (incoming.word1 !== null ? 1 : 0) + (incoming.word2 !== null ? 1 : 0);
+              return newWords >= curWords ? incoming : r;
+            })
           );
         }
       )
