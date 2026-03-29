@@ -26,6 +26,7 @@ export interface Round {
   player2_id: string | null;
   is_match: boolean;
   is_complete: boolean;
+  similarity_level: number | null;
   created_at: string;
 }
 

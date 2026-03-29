@@ -202,7 +202,7 @@ export default function PartyOverlay({
         <p className="text-white/80 text-lg font-bold text-center">
           {"\u200Fהגעתם לאמצע ב-"}
           <span className="text-3xl font-black text-kahoot-gold mx-1">{roundCount}</span>
-          {"\u200Fסיבובים\u200F!"}
+          {"\u200F\u05EA\u05D5\u05E8\u05D5\u05EA\u200F!"}
         </p>
         <p className="text-kahoot-gold/80 text-base font-bold text-center mt-1">
           {getRoundMessage(roundCount)}

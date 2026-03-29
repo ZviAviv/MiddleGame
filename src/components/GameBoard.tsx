@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import type { Round, Player, Submission } from "@/types/game";
 import WordPairRow from "./WordPairRow";
 
@@ -12,17 +12,45 @@ interface GameBoardProps {
 }
 
 export default function GameBoard({ rounds, players, playerColorMap, submissions }: GameBoardProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevSubCountRef = useRef(0);
+  const prevRoundCountRef = useRef(0);
 
-  // Auto-scroll to bottom when rounds or submissions change
+  const scrollToBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      });
+    }
+  }, []);
+
+  // Scroll when submission count or round count actually increases
   useEffect(() => {
-    if (rounds.length > 0 || submissions.length > 0) {
-      const timer = setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      }, 100);
+    const subCount = submissions.length;
+    const roundCount = rounds.length;
+    const subChanged = subCount > prevSubCountRef.current;
+    const roundChanged = roundCount > prevRoundCountRef.current;
+
+    prevSubCountRef.current = subCount;
+    prevRoundCountRef.current = roundCount;
+
+    if (subChanged || roundChanged) {
+      // Multiple delays to catch layout shifts from card gap animations
+      const timers = [50, 300, 700].map((ms) => setTimeout(scrollToBottom, ms));
+      return () => timers.forEach(clearTimeout);
+    }
+  }, [submissions.length, rounds.length, scrollToBottom]);
+
+  // Also scroll when the latest round gets its similarity level (cards move)
+  const latestSimilarity = rounds[rounds.length - 1]?.similarity_level;
+  useEffect(() => {
+    if (latestSimilarity != null) {
+      const timer = setTimeout(scrollToBottom, 400);
       return () => clearTimeout(timer);
     }
-  }, [rounds.length, submissions.length, rounds[rounds.length - 1]?.is_complete]);
+  }, [latestSimilarity, scrollToBottom]);
 
   // Only show rounds that have at least one submission
   const visibleRounds = rounds.filter((r) => r.is_complete || submissions.some((s) => s.round_id === r.id));
@@ -40,24 +68,28 @@ export default function GameBoard({ rounds, players, playerColorMap, submissions
   }
 
   return (
-    <div className="flex-1 overflow-y-auto scroll-smooth px-2 pt-4 pb-32 space-y-6">
+    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth px-2 pt-4 pb-32 space-y-6 scrollbar-hide">
       <div className="relative">
-        {visibleRounds.map((round, i) => (
-          <div key={round.id} className="mb-6 last:mb-0">
-            <WordPairRow
-              round={round}
-              roundIndex={i}
-              players={players}
-              playerColorMap={playerColorMap}
-              submissions={submissions}
-              isLatest={i === visibleRounds.length - 1}
-            />
-          </div>
-        ))}
+        {visibleRounds.map((round, i) => {
+          const prevRound = i > 0 ? visibleRounds[i - 1] : null;
+          return (
+            <div key={round.id} className="mb-6 last:mb-0">
+              <WordPairRow
+                round={round}
+                roundIndex={i}
+                players={players}
+                playerColorMap={playerColorMap}
+                submissions={submissions}
+                isLatest={i === visibleRounds.length - 1}
+                prevSimilarityLevel={prevRound?.similarity_level ?? null}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {/* Scroll anchor */}
-      <div ref={bottomRef} className="h-1" />
+      <div className="h-1" />
     </div>
   );
 }

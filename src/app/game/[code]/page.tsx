@@ -28,6 +28,7 @@ export default function GamePage() {
   const [nicknameInput, setNicknameInput] = useState("");
   const [error, setError] = useState("");
   const [urlCopied, setUrlCopied] = useState(false);
+  const [showParty, setShowParty] = useState(false);
 
   const {
     game,
@@ -104,6 +105,18 @@ export default function GamePage() {
       prevRoundsCountRef.current = rounds.length;
     }
   }, [rounds.length, lastRoundComplete, lastRound?.id]);
+
+  // Delayed party reveal — show cards with a glow first, then trigger the overlay
+  const isGameFinished = phase === "finished" && currentRound?.is_match;
+  useEffect(() => {
+    if (isGameFinished) {
+      // 1.2s delay: lets players see both words + glow before the party explodes
+      const timer = setTimeout(() => setShowParty(true), 2500);
+      return () => clearTimeout(timer);
+    } else {
+      setShowParty(false);
+    }
+  }, [isGameFinished]);
 
   // Background tab notifications — nudge when new submissions arrive while tab is hidden
   const bgSubmissionCountRef = useRef(submissions.length);
@@ -203,6 +216,37 @@ export default function GamePage() {
     setJoining(false);
   };
 
+  // Determine if current player is the game creator (first player by join order)
+  const sortedPlayers = useMemo(
+    () => [...players].sort((a, b) => a.joined_at.localeCompare(b.joined_at)),
+    [players]
+  );
+  const isCreator = sortedPlayers.length > 0 && sortedPlayers[0].id === playerId;
+  const playerIds = useMemo(() => sortedPlayers.map((p) => p.id), [sortedPlayers]);
+
+  // Current round submissions (for player status indicators)
+  const currentRoundSubs = currentRound
+    ? submissions.filter((s) => s.round_id === currentRound.id)
+    : [];
+
+  // Use is_complete (set by RPC for ALL rounds) instead of word1/word2
+  // (which are only set for matching rounds).
+  const isCurrentRoundComplete = !!currentRound?.is_complete;
+
+  // Set of normalized words already used in completed rounds (for duplicate prevention).
+  // Only count words from rounds where both players submitted — otherwise player 2
+  // would be blocked from matching player 1's word in the current round.
+  const usedWords = useMemo(() => {
+    const completedRoundIds = new Set(
+      rounds.filter((r) => r.is_complete).map((r) => r.id)
+    );
+    return new Set(
+      submissions
+        .filter((s) => completedRoundIds.has(s.round_id))
+        .map((s) => normalizeWord(s.word))
+    );
+  }, [submissions, rounds]);
+
   // Loading state
   if (loading && !game) {
     return (
@@ -282,23 +326,11 @@ export default function GamePage() {
     );
   }
 
-  // Current round submissions (for player status indicators)
-  const currentRoundSubs = currentRound
-    ? submissions.filter((s) => s.round_id === currentRound.id)
-    : [];
-
-  const isCurrentRoundComplete = !!(currentRound?.word1 && currentRound?.word2);
-
-  // Set of normalized words already used in this game (for duplicate prevention)
-  const usedWords = useMemo(
-    () => new Set(submissions.map((s) => normalizeWord(s.word))),
-    [submissions]
-  );
 
   // Lobby phase
   if (phase === "lobby") {
     return (
-      <div className="flex flex-col min-h-dvh">
+      <div className="flex flex-col h-dvh overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 backdrop-blur-sm">
           <div className="flex items-center gap-1">
@@ -349,6 +381,8 @@ export default function GamePage() {
             roundNumber={0}
             isRoundComplete={false}
             usedWords={usedWords}
+            isCreator={isCreator}
+            playerIds={playerIds}
             onSubmitted={refresh}
           />
         )}
@@ -359,7 +393,7 @@ export default function GamePage() {
 
   // Active game / Finished
   return (
-    <div className="flex flex-col min-h-dvh">
+    <div className="flex flex-col h-dvh overflow-hidden">
       {/* Top bar — game code with share button */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 backdrop-blur-sm">
         <div className="flex items-center gap-1">
@@ -419,8 +453,8 @@ export default function GamePage() {
         />
       )}
 
-      {/* Party overlay when game is finished */}
-      {phase === "finished" && currentRound?.is_match && (
+      {/* Party overlay when game is finished — delayed for dramatic reveal */}
+      {showParty && currentRound?.is_match && (
         <PartyOverlay
           matchWord={currentRound.word1_raw || currentRound.word1 || ""}
           players={players}
@@ -445,6 +479,8 @@ export default function GamePage() {
           roundNumber={currentRound?.round_number || 0}
           isRoundComplete={isCurrentRoundComplete}
           usedWords={usedWords}
+          isCreator={isCreator}
+          playerIds={playerIds}
           onSubmitted={refresh}
         />
       )}

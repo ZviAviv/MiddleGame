@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { submitWord } from "@/lib/game-actions";
+import { submitWord, generateStartingWords } from "@/lib/game-actions";
 import { soundManager } from "@/lib/sounds";
 import { normalizeWord } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ interface InputAreaProps {
   roundNumber: number;
   isRoundComplete: boolean;
   usedWords: Set<string>;
+  isCreator: boolean;
+  playerIds: string[];
   onSubmitted?: () => void;
 }
 
@@ -28,12 +30,15 @@ export default function InputArea({
   roundNumber,
   isRoundComplete,
   usedWords,
+  isCreator,
+  playerIds,
   onSubmitted,
 }: InputAreaProps) {
   const [word, setWord] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
   const [duplicateError, setDuplicateError] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const prevCanSubmitRef = useRef(canSubmit);
 
@@ -104,6 +109,23 @@ export default function InputArea({
     }
   };
 
+  const handleGenerateWords = async () => {
+    if (generating) return;
+    setGenerating(true);
+    soundManager?.play("whoosh");
+
+    const result = await generateStartingWords(gameId, playerId);
+    setGenerating(false);
+
+    if ("error" in result) {
+      console.error("Generate words failed:", result.error);
+      return;
+    }
+    onSubmitted?.();
+  };
+
+  const showGenerateButton = isLobby && isCreator && !justSubmitted;
+
   const isWaiting = hasSubmitted || justSubmitted;
 
   const getPlaceholder = () => {
@@ -134,8 +156,26 @@ export default function InputArea({
         <div className="bg-white/95 backdrop-blur-lg px-3 pt-4 pb-[max(16px,env(safe-area-inset-bottom))]">
           {duplicateError && (
             <p className="text-center text-kahoot-red font-bold text-sm mb-2 animate-bounce-in" dir="rtl">
-              {"\u200F\u05D4\u05DE\u05D9\u05DC\u05D4 \u05D4\u05D6\u05D0\u05EA \u05DB\u05D1\u05E8 \u05D4\u05D5\u05E4\u05D9\u05E2\u05D4 \u05D1\u05DE\u05E9\u05D7\u05E7"}
+              {"\u200F\u05D4\u05DE\u05D9\u05DC\u05D4 \u05DB\u05D1\u05E8 \u05D4\u05D5\u05E4\u05D9\u05E2\u05D4 \u05D1\u05EA\u05D5\u05E8 \u05D4\u05E0\u05D5\u05DB\u05D7\u05D9"}
             </p>
+          )}
+          {showGenerateButton && (
+            <>
+              <button
+                onClick={handleGenerateWords}
+                disabled={generating}
+                className="w-full mb-3 rounded-2xl px-4 py-3 text-base font-bold
+                           bg-kahoot-purple/10 border-2 border-dashed border-kahoot-purple/30
+                           text-kahoot-purple hover:bg-kahoot-purple/15
+                           disabled:opacity-50 transition-all duration-150"
+                dir="rtl"
+              >
+                {generating
+                  ? <span>{"\u23F3"} {"\u200F\u05D9\u05D5\u05E6\u05E8 \u05DE\u05D9\u05DC\u05D9\u05DD..."}</span>
+                  : <span>{"\u200F\u05D4\u05EA\u05D7\u05D9\u05DC\u05D5 \u05E2\u05DD \u05DE\u05D9\u05DC\u05D9\u05DD \u05D0\u05E7\u05E8\u05D0\u05D9\u05D5\u05EA"} <span>{"\u{1F3B2}"}</span></span>
+                }
+              </button>
+            </>
           )}
           <div className="flex gap-2 items-center">
           <input

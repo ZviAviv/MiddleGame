@@ -10,6 +10,8 @@ interface WordCardProps {
   animationDelay?: number;
 }
 
+const CARD_CLASS = "w-[130px] shrink-0";
+
 export default function WordCard({
   word,
   color,
@@ -22,11 +24,11 @@ export default function WordCard({
   // State: someone submitted but word not yet revealed (other player hasn't submitted)
   if (hasSubmission && !revealed) {
     return (
-      <div className="flex-1 min-w-[120px] max-w-[160px] animate-pop-in">
+      <div className={`${CARD_CLASS} animate-pop-in`}>
         <div
-          className="rounded-2xl px-4 py-6 text-center
+          className="rounded-2xl px-3 py-5 text-center
                      shadow-[0_4px_0_rgba(0,0,0,0.25)]
-                     min-h-[80px] flex items-center justify-center opacity-70"
+                     min-h-[72px] flex items-center justify-center opacity-70"
           style={{ backgroundColor: color }}
         >
           <span className="text-2xl text-white/80">{"\u{1F92B}"}</span>
@@ -43,9 +45,9 @@ export default function WordCard({
   // State: no submission yet — empty placeholder
   if (!revealed || !word) {
     return (
-      <div className="flex-1 min-w-[120px] max-w-[160px]">
-        <div className="shimmer rounded-2xl px-4 py-6 text-center
-                        border-2 border-dashed border-white/10 min-h-[80px]
+      <div className={CARD_CLASS}>
+        <div className="shimmer rounded-2xl px-3 py-5 text-center
+                        border-2 border-dashed border-white/10 min-h-[72px]
                         flex items-center justify-center">
           <span className="text-2xl text-white/30 animate-pulse-slow">?</span>
         </div>
@@ -56,19 +58,19 @@ export default function WordCard({
   // State: word revealed
   return (
     <div
-      className="flex-1 min-w-[120px] max-w-[160px] animate-bounce-in"
+      className={`${CARD_CLASS} animate-bounce-in`}
       style={{ animationDelay: `${animationDelay}s` }}
     >
       <div
-        className={`rounded-2xl px-4 py-6 text-center
+        className={`rounded-2xl px-3 py-5 text-center
                     shadow-[0_4px_0_rgba(0,0,0,0.25)] shadow-lg
-                    min-h-[80px] flex flex-col items-center justify-center
+                    min-h-[72px] flex flex-col items-center justify-center
                     transition-all duration-300
                     hover:scale-[1.02]
-                    ${isMatch ? "animate-glow-pulse ring-2 ring-kahoot-gold ring-offset-2 ring-offset-transparent" : ""}`}
+                    ${isMatch ? "animate-glow-pulse-subtle ring-1 ring-kahoot-gold/40" : ""}`}
         style={{ backgroundColor: color }}
       >
-        <span className="text-xl font-bold text-white drop-shadow-sm break-words leading-tight">
+        <span className="text-lg font-bold text-white drop-shadow-sm break-words leading-tight">
           {word}
         </span>
       </div>

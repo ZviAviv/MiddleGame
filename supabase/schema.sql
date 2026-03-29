@@ -39,6 +39,7 @@ CREATE TABLE rounds (
   player2_id UUID REFERENCES players(id),
   is_match BOOLEAN NOT NULL DEFAULT false,
   is_complete BOOLEAN NOT NULL DEFAULT false,
+  similarity_level SMALLINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(game_id, round_number)
 );

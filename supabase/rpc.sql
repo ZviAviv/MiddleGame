@@ -108,11 +108,9 @@ BEGIN
       FOR v_sub2 IN
         SELECT * FROM submissions WHERE round_id = v_round_id AND position > v_sub1.position ORDER BY position
       LOOP
-        -- Fuzzy match: exact match OR Levenshtein distance <= 1 for words with 3+ chars
+        -- Exact match only — spelling variant detection is handled
+        -- in the application layer via Gemini API after round completes.
         IF v_sub1.word = v_sub2.word THEN
-          v_is_match := true;
-        ELSIF length(v_sub1.word) >= 3 AND length(v_sub2.word) >= 3
-              AND levenshtein(v_sub1.word, v_sub2.word) <= 1 THEN
           v_is_match := true;
         END IF;
 
