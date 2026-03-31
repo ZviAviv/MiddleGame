@@ -8,7 +8,7 @@ interface PlayerListProps {
   currentPlayerId: string | null;
   playerColorMap: Map<string, string>;
   currentRoundSubmissions?: Submission[];
-  onlinePlayerIds?: Set<string>;
+  onlinePlayerIds?: Set<string> | null;
 }
 
 export default function PlayerList({

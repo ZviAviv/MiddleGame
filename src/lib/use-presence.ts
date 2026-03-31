@@ -7,8 +7,9 @@ import { createClient } from "@/lib/supabase/client";
  * Tracks which players are currently online (have the game open)
  * using Supabase Realtime Presence.
  */
-export function usePresence(gameCode: string, playerId: string | null): Set<string> {
-  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+export function usePresence(gameCode: string, playerId: string | null): Set<string> | null {
+  // null = not yet synced (treat everyone as online); Set = synced presence data
+  const [onlineIds, setOnlineIds] = useState<Set<string> | null>(null);
   const supabaseRef = useRef(createClient());
 
   useEffect(() => {

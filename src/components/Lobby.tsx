@@ -10,7 +10,7 @@ interface LobbyProps {
   players: Player[];
   currentPlayerId: string | null;
   playerColorMap: Map<string, string>;
-  onlinePlayerIds?: Set<string>;
+  onlinePlayerIds?: Set<string> | null;
 }
 
 export default function Lobby({ code, players, currentPlayerId, playerColorMap, onlinePlayerIds }: LobbyProps) {
