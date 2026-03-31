@@ -76,7 +76,7 @@ export default function WordPairRow({
 
       {/* Word cards — gap animates when similarity_level arrives via Realtime */}
       <div
-        className="flex items-start justify-center w-full px-2 relative overflow-hidden"
+        className="flex items-start justify-center w-full px-2 relative"
         style={{
           gap: currentGap,
           transition: "gap 700ms cubic-bezier(.23, 1, .32, 1)",

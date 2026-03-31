@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { soundManager } from "@/lib/sounds";
 import { resetGame } from "@/lib/game-actions";
@@ -17,10 +17,65 @@ interface PartyOverlayProps {
   gameCode: string;
 }
 
-function getRoundMessage(count: number): string {
-  if (count <= 3) return "\u200Fוואו, מהר\u200F!";
-  if (count <= 8) return "\u200Fעבודת צוות מעולה\u200F!";
-  return "\u200Fהדרך הייתה שווה את זה\u200F!";
+// --- Game history tracking across rematches ---
+
+interface GameResult {
+  roundCount: number;
+  matchPlayerIds: string[];
+}
+
+const HISTORY_PREFIX = "middlegame_history_";
+
+function getGameHistory(gameCode: string): GameResult[] {
+  try {
+    const raw = localStorage.getItem(`${HISTORY_PREFIX}${gameCode}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveGameResult(gameCode: string, result: GameResult): GameResult[] {
+  const history = getGameHistory(gameCode);
+  history.push(result);
+  localStorage.setItem(`${HISTORY_PREFIX}${gameCode}`, JSON.stringify(history));
+  return history;
+}
+
+// --- Compliment messages ---
+
+const SHORT_MESSAGES = [
+  "\u200F\u05D4\u05D5\u05E4\u05E8\u05D3\u05EA\u05DD \u05D1\u05DC\u05D9\u05D3\u05D4\u200F?",         // הופרדתם בלידה?
+  "\u200F\u05D5\u05D0\u05D5, \u05DB\u05D1\u05E8 \u05D4\u05EA\u05D7\u05DC\u05E0\u05D5 \u05D5\u05DB\u05D1\u05E8 \u05E0\u05D2\u05DE\u05E8\u200F?", // וואו, כבר התחלנו וכבר נגמר?
+  "\u200F\u05D5\u05D0\u05D5, \u05DE\u05D4\u05E8\u200F!",                                               // וואו, מהר!
+];
+
+const MEDIUM_MESSAGES = [
+  "\u200F\u05E2\u05D1\u05D5\u05D3\u05EA \u05E6\u05D5\u05D5\u05EA \u05DE\u05E2\u05D5\u05DC\u05D4\u200F!", // עבודת צוות מעולה!
+];
+
+const LONG_MESSAGES = [
+  "\u200F\u05EA\u05D5\u05D3\u05D4 \u05DC\u05D0\u05DC\u200F!",                                         // תודה לאל!
+  "\u200F\u05DB\u05DC \u05D4\u05DB\u05D1\u05D5\u05D3 \u05E2\u05DC \u05D4\u05D4\u05EA\u05DE\u05D3\u05D4\u200F!", // כל הכבוד על ההתמדה!
+  "\u200F\u05D6\u05D4 \u05D4\u05D9\u05D4 \u05DE\u05E1\u05E2 \u05D0\u05E8\u05D5\u05DA \u05D5\u05DE\u05E9\u05DE\u05E2\u05D5\u05EA\u05D9", // זה היה מסע ארוך ומשמעותי
+  "\u200F\u05D4\u05D3\u05E8\u05DA \u05D4\u05D9\u05D9\u05EA\u05D4 \u05E9\u05D5\u05D5\u05D4 \u05D0\u05EA \u05D6\u05D4\u200F!", // הדרך הייתה שווה את זה!
+];
+
+function pickRandom(arr: string[]): string {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getRoundMessage(
+  roundCount: number,
+  gameNumber: number,
+  isNewShortest: boolean,
+): string {
+  // From game 3+: if this is the new shortest, highlight it
+  if (gameNumber >= 3 && isNewShortest) {
+    return "\u200F\u{1F3C6} \u05E9\u05D9\u05D0 \u05D7\u05D3\u05E9\u200F! \u05D4\u05E1\u05D9\u05D1\u05D5\u05D1 \u05D4\u05DB\u05D9 \u05E7\u05E6\u05E8 \u05E2\u05D3 \u05E2\u05DB\u05E9\u05D9\u05D5\u200F!"; // 🏆 שיא חדש! הסיבוב הכי קצר עד עכשיו!
+  }
+  if (roundCount <= 2) return "\u200F\u05D8\u05DC\u05E4\u05EA\u05D9\u05D4\u200F!!!!"; // טלפתיה!!!!
+  if (roundCount <= 4) return pickRandom(SHORT_MESSAGES);
+  if (roundCount <= 8) return pickRandom(MEDIUM_MESSAGES);
+  return pickRandom(LONG_MESSAGES);
 }
 
 export default function PartyOverlay({
@@ -39,6 +94,52 @@ export default function PartyOverlay({
   const [partyStarted, setPartyStarted] = useState(false);
   const [resetting, setResetting] = useState(false);
   const confettiFired = useRef(false);
+  const savedRef = useRef(false);
+
+  // Save this game result to history and compute stats
+  const { history, gameNumber, isNewShortest, shortestRounds, longestRounds, topMiddlePlayers } = useMemo(() => {
+    const matchIds = [player1Id, player2Id].filter(Boolean) as string[];
+    const result: GameResult = { roundCount: rounds.length, matchPlayerIds: matchIds };
+
+    let allHistory: GameResult[];
+    if (!savedRef.current) {
+      savedRef.current = true;
+      allHistory = saveGameResult(gameCode, result);
+    } else {
+      allHistory = getGameHistory(gameCode);
+    }
+
+    const num = allHistory.length;
+    const pastHistory = allHistory.slice(0, -1); // all games except current
+
+    // Shortest & longest across all games
+    const allRoundCounts = allHistory.map((g) => g.roundCount);
+    const shortest = Math.min(...allRoundCounts);
+    const longest = Math.max(...allRoundCounts);
+    const currentIsNewShortest = pastHistory.length >= 2 && rounds.length < Math.min(...pastHistory.map((g) => g.roundCount));
+
+    // Player who hit the middle the most (across all games)
+    const middleCounts = new Map<string, number>();
+    for (const g of allHistory) {
+      for (const pid of g.matchPlayerIds) {
+        middleCounts.set(pid, (middleCounts.get(pid) || 0) + 1);
+      }
+    }
+    const maxMiddle = Math.max(...middleCounts.values(), 0);
+    const topPlayers = [...middleCounts.entries()]
+      .filter(([, count]) => count === maxMiddle)
+      .map(([pid]) => pid);
+
+    return {
+      history: allHistory,
+      gameNumber: num,
+      isNewShortest: currentIsNewShortest,
+      shortestRounds: shortest,
+      longestRounds: longest,
+      topMiddlePlayers: topPlayers,
+      topMiddleCount: maxMiddle,
+    };
+  }, [gameCode, player1Id, player2Id, rounds.length]);
 
   const player1 = players.find((p) => p.id === player1Id);
   const player2 = players.find((p) => p.id === player2Id);
@@ -200,24 +301,64 @@ export default function PartyOverlay({
       {/* Round counter */}
       <div className="animate-slide-up mt-5 z-10" style={{ animationDelay: "0.5s" }} dir="rtl">
         <p className="text-white/80 text-lg font-bold text-center">
-          {"\u200Fהגעתם לאמצע ב-"}
+          {"\u200F\u05D4\u05D2\u05E2\u05EA\u05DD \u05DC\u05D0\u05DE\u05E6\u05E2 \u05D1-"}
           <span className="text-3xl font-black text-kahoot-gold mx-1">{roundCount}</span>
           {"\u200F\u05EA\u05D5\u05E8\u05D5\u05EA\u200F!"}
         </p>
         <p className="text-kahoot-gold/80 text-base font-bold text-center mt-1">
-          {getRoundMessage(roundCount)}
+          {getRoundMessage(roundCount, gameNumber, isNewShortest)}
         </p>
       </div>
 
       {/* Players who matched */}
       <div className="animate-slide-up mt-4 z-10" style={{ animationDelay: "0.7s" }} dir="rtl">
         <p className="text-white/70 text-lg font-medium text-center">
-          <span>{"\u200Fכל הכבוד\u200F!"}</span> <span>{"\u{1F44F}"}</span>
+          <span>{"\u200F\u05DB\u05DC \u05D4\u05DB\u05D1\u05D5\u05D3\u200F!"}</span> <span>{"\u{1F44F}"}</span>
         </p>
         <p className="text-white/50 text-sm text-center mt-1">
-          {player1?.nickname || "?"} ו-{player2?.nickname || "?"} חשבו אותו דבר
+          {player1?.nickname || "?"} {"\u05D5-"}{player2?.nickname || "?"} {"\u05D7\u05E9\u05D1\u05D5 \u05D0\u05D5\u05EA\u05D5 \u05D3\u05D1\u05E8"}
         </p>
       </div>
+
+      {/* Session stats — shown from game 2+ */}
+      {gameNumber >= 2 && (
+        <div className="animate-slide-up mt-5 z-10 w-full max-w-xs px-4" style={{ animationDelay: "0.9s" }} dir="rtl">
+          <div className="bg-white/8 border border-white/10 rounded-2xl px-4 py-3 space-y-2">
+            <p className="text-white/50 text-xs font-bold text-center mb-2">
+              {"\u200F\u{1F4CA} \u05E1\u05D8\u05D8\u05D9\u05E1\u05D8\u05D9\u05E7\u05D5\u05EA \u05DE\u05E9\u05D7\u05E7 "}{gameNumber}
+            </p>
+
+            {/* Shortest / Longest — from game 3+ */}
+            {gameNumber >= 3 && (
+              <>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60 text-sm">{"\u200F\u05D4\u05E1\u05D9\u05D1\u05D5\u05D1 \u05D4\u05DB\u05D9 \u05E7\u05E6\u05E8"}</span>
+                  <span className="text-kahoot-green font-bold text-sm">
+                    {shortestRounds} {"\u05EA\u05D5\u05E8\u05D5\u05EA"} {"\u26A1"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60 text-sm">{"\u200F\u05D4\u05E1\u05D9\u05D1\u05D5\u05D1 \u05D4\u05DB\u05D9 \u05D0\u05E8\u05D5\u05DA"}</span>
+                  <span className="text-kahoot-pink font-bold text-sm">
+                    {longestRounds} {"\u05EA\u05D5\u05E8\u05D5\u05EA"} {"\u{1F422}"}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {/* Best middle player */}
+            <div className="flex justify-between items-center">
+              <span className="text-white/60 text-sm">{"\u200F\u05E7\u05D5\u05DC\u05E2 \u05DC\u05D0\u05DE\u05E6\u05E2"}</span>
+              <span className="text-kahoot-gold font-bold text-sm">
+                {topMiddlePlayers.map((pid) => {
+                  const p = players.find((pl) => pl.id === pid);
+                  return p?.nickname || "?";
+                }).join(" \u05D5-")} {"\u{1F3AF}"}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Action buttons */}
       {showNewGame && (

@@ -10,9 +10,10 @@ interface LobbyProps {
   players: Player[];
   currentPlayerId: string | null;
   playerColorMap: Map<string, string>;
+  onlinePlayerIds?: Set<string>;
 }
 
-export default function Lobby({ code, players, currentPlayerId, playerColorMap }: LobbyProps) {
+export default function Lobby({ code, players, currentPlayerId, playerColorMap, onlinePlayerIds }: LobbyProps) {
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-6 py-10 gap-8">
       {/* Title */}
@@ -43,6 +44,7 @@ export default function Lobby({ code, players, currentPlayerId, playerColorMap }
           players={players}
           currentPlayerId={currentPlayerId}
           playerColorMap={playerColorMap}
+          onlinePlayerIds={onlinePlayerIds}
         />
       </div>
 

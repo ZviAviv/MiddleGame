@@ -3,8 +3,9 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGame } from "@/lib/use-game";
+import { usePresence } from "@/lib/use-presence";
 import { useSession } from "@/lib/use-session";
-import { joinGame } from "@/lib/game-actions";
+import { createClient } from "@/lib/supabase/client";
 import { soundManager } from "@/lib/sounds";
 import { buildPlayerColorMap, normalizeWord } from "@/lib/utils";
 import Lobby from "@/components/Lobby";
@@ -45,6 +46,7 @@ export default function GamePage() {
 
   // Build persistent player color map
   const playerColorMap = useMemo(() => buildPlayerColorMap(players), [players]);
+  const onlinePlayerIds = usePresence(code, playerId);
 
   // Try to recover player ID from localStorage
   useEffect(() => {
@@ -67,17 +69,25 @@ export default function GamePage() {
     if (!playerId && !joining && nickname && clientId && game && game.status === "lobby") {
       const doAutoJoin = async () => {
         setJoining(true);
-        const result = await joinGame(code, nickname, clientId);
-        if (!("error" in result)) {
-          setPlayerId(result.playerId);
-          setGameId(result.gameId);
-          localStorage.setItem(`middlegame_player_${code}`, result.playerId);
+        const supabase = createClient();
+        const { data: player } = await supabase
+          .from("players")
+          .upsert(
+            { game_id: game.id, nickname: nickname.trim(), client_id: clientId },
+            { onConflict: "game_id,client_id" }
+          )
+          .select()
+          .single();
+        if (player) {
+          setPlayerId(player.id);
+          setGameId(game.id);
+          localStorage.setItem(`middlegame_player_${code}`, player.id);
         }
         setJoining(false);
       };
       doAutoJoin();
     }
-  }, [playerId, joining, nickname, clientId, game?.status, code]);
+  }, [playerId, joining, nickname, clientId, game, code]);
 
   const [showHelp, setShowHelp] = useState(false);
 
@@ -193,26 +203,31 @@ export default function GamePage() {
       setError("\u200Fצריך שם\u200F!");
       return;
     }
-    if (!clientId) return;
+    if (!clientId || !game) return;
 
     setJoining(true);
     setError("");
     setNickname(nicknameInput.trim());
 
-    const result = await joinGame(code, nicknameInput.trim(), clientId);
-    if ("error" in result) {
-      if (result.error === "game_not_found") {
-        setError("\u200Fלא נמצא משחק עם הקוד הזה");
-      } else {
-        setError(result.error);
-      }
+    const supabase = createClient();
+    const { data: player, error: playerError } = await supabase
+      .from("players")
+      .upsert(
+        { game_id: game.id, nickname: nicknameInput.trim(), client_id: clientId },
+        { onConflict: "game_id,client_id" }
+      )
+      .select()
+      .single();
+
+    if (playerError || !player) {
+      setError(playerError?.message || "\u200Fלא הצלחנו להצטרף");
       setJoining(false);
       return;
     }
 
-    setPlayerId(result.playerId);
-    setGameId(result.gameId);
-    localStorage.setItem(`middlegame_player_${code}`, result.playerId);
+    setPlayerId(player.id);
+    setGameId(game.id);
+    localStorage.setItem(`middlegame_player_${code}`, player.id);
     setJoining(false);
   };
 
@@ -333,30 +348,42 @@ export default function GamePage() {
       <div className="flex flex-col h-dvh overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 backdrop-blur-sm">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => router.push("/")}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors text-white/60 hover:text-white"
+              title={"\u05D7\u05D6\u05E8\u05D4 \u05DC\u05D3\u05E3 \u05D4\u05D1\u05D9\u05EA"}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path d="M11.47 3.841a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.061l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.689z" />
+                <path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15.75a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a.75.75 0 01.091-.086L12 5.432z" />
+              </svg>
+            </button>
             <SoundToggle />
             <button
               onClick={() => setShowHelp(true)}
-              className="text-xl p-2 rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors text-white/60 hover:text-white"
               title={"\u05D0\u05D9\u05DA \u05DE\u05E9\u05D7\u05E7\u05D9\u05DD?"}
             >
-              {"?"}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 01-.837.552c-.676.37-1.028.72-1.028 1.152v.75a.75.75 0 01-1.5 0v-.75c0-1.279 1.06-1.91 1.69-2.252.241-.131.444-.274.597-.428.801-.7.801-1.837 0-2.537zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+              </svg>
             </button>
           </div>
 
           <div className="flex items-center gap-3" dir="rtl">
             <span className="text-sm text-white/50 font-medium">{"\u200F\u05E7\u05D5\u05D3 \u05DE\u05E9\u05D7\u05E7"}</span>
-            <span className="text-lg font-black text-white tracking-wider" dir="ltr">{code}</span>
+            <span className="text-lg font-black text-kahoot-gold">{code}</span>
             <button
               onClick={handleCopyUrl}
-              className="text-sm font-bold text-kahoot-gold hover:text-white
+              className="text-sm font-bold text-white/70 hover:text-white
                          bg-white/10 hover:bg-white/20 rounded-full px-3 py-1
                          transition-all duration-150"
               dir="rtl"
             >
               {urlCopied
-                ? <span>{"\u200F\u05D4\u05D5\u05E2\u05EA\u05E7\u200F!"} <span>{"\u2713"}</span></span>
-                : <span>{"\u200F\u05E9\u05EA\u05E4\u05D5"} <span>{"\u{1F4CB}"}</span></span>
+                ? <span>{"\u200F\u05D4\u05D5\u05E2\u05EA\u05E7\u200F!"}</span>
+                : <span>{"\u200F\u05E9\u05EA\u05E4\u05D5"}</span>
               }
             </button>
           </div>
@@ -367,6 +394,7 @@ export default function GamePage() {
           players={players}
           currentPlayerId={playerId}
           playerColorMap={playerColorMap}
+          onlinePlayerIds={onlinePlayerIds}
         />
 
         {/* Input at bottom for starting the game */}
@@ -396,30 +424,42 @@ export default function GamePage() {
     <div className="flex flex-col h-dvh overflow-hidden">
       {/* Top bar — game code with share button */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 backdrop-blur-sm">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => router.push("/")}
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors text-white/60 hover:text-white"
+            title={"\u05D7\u05D6\u05E8\u05D4 \u05DC\u05D3\u05E3 \u05D4\u05D1\u05D9\u05EA"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <path d="M11.47 3.841a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.061l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.689z" />
+              <path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15.75a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a.75.75 0 01.091-.086L12 5.432z" />
+            </svg>
+          </button>
           <SoundToggle />
           <button
             onClick={() => setShowHelp(true)}
-            className="text-xl p-2 rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-kahoot-gold focus-visible:outline-none transition-colors text-white/60 hover:text-white"
             title={"\u05D0\u05D9\u05DA \u05DE\u05E9\u05D7\u05E7\u05D9\u05DD?"}
           >
-            {"?"}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 01-.837.552c-.676.37-1.028.72-1.028 1.152v.75a.75.75 0 01-1.5 0v-.75c0-1.279 1.06-1.91 1.69-2.252.241-.131.444-.274.597-.428.801-.7.801-1.837 0-2.537zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+            </svg>
           </button>
         </div>
 
         <div className="flex items-center gap-3" dir="rtl">
-          <span className="text-sm text-white/50 font-medium">{"\u200Fקוד משחק"}</span>
-          <span className="text-lg font-black text-white tracking-wider" dir="ltr">{code}</span>
+          <span className="text-sm text-white/50 font-medium">{"\u200F\u05E7\u05D5\u05D3 \u05DE\u05E9\u05D7\u05E7"}</span>
+          <span className="text-lg font-black text-kahoot-gold">{code}</span>
           <button
             onClick={handleCopyUrl}
-            className="text-sm font-bold text-kahoot-gold hover:text-white
+            className="text-sm font-bold text-white/70 hover:text-white
                        bg-white/10 hover:bg-white/20 rounded-full px-3 py-1
                        transition-all duration-150"
             dir="rtl"
           >
             {urlCopied
-              ? <span>{"\u200Fהועתק\u200F!"} <span>{"\u2713"}</span></span>
-              : <span>{"\u200Fשתפו"} <span>{"\u{1F4CB}"}</span></span>
+              ? <span>{"\u200F\u05D4\u05D5\u05E2\u05EA\u05E7\u200F!"}</span>
+              : <span>{"\u200F\u05E9\u05EA\u05E4\u05D5"}</span>
             }
           </button>
         </div>
@@ -432,6 +472,7 @@ export default function GamePage() {
           currentPlayerId={playerId}
           playerColorMap={playerColorMap}
           currentRoundSubmissions={currentRoundSubs}
+          onlinePlayerIds={onlinePlayerIds}
         />
       </div>
 

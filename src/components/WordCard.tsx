@@ -24,7 +24,7 @@ export default function WordCard({
   // State: someone submitted but word not yet revealed (other player hasn't submitted)
   if (hasSubmission && !revealed) {
     return (
-      <div className={`${CARD_CLASS} animate-pop-in`}>
+      <div className={`${CARD_CLASS} animate-card-reveal`} style={{ opacity: 0 }}>
         <div
           className="rounded-2xl px-3 py-5 text-center
                      shadow-[0_4px_0_rgba(0,0,0,0.25)]
@@ -58,8 +58,8 @@ export default function WordCard({
   // State: word revealed
   return (
     <div
-      className={`${CARD_CLASS} animate-bounce-in`}
-      style={{ animationDelay: `${animationDelay}s` }}
+      className={`${CARD_CLASS} animate-card-reveal`}
+      style={{ opacity: 0, animationDelay: `${animationDelay}s` }}
     >
       <div
         className={`rounded-2xl px-3 py-5 text-center

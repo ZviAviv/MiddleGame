@@ -9,6 +9,14 @@ class SoundManager {
   constructor() {
     if (typeof window !== "undefined") {
       this._muted = localStorage.getItem("middlegame_muted") === "true";
+      // Pre-warm AudioContext on first user interaction so sounds play instantly later
+      const warmUp = () => {
+        this.getCtx().resume();
+        document.removeEventListener("pointerdown", warmUp);
+        document.removeEventListener("keydown", warmUp);
+      };
+      document.addEventListener("pointerdown", warmUp, { once: true });
+      document.addEventListener("keydown", warmUp, { once: true });
     }
   }
 

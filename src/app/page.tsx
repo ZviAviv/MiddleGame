@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/use-session";
-import { createGame, joinGame } from "@/lib/game-actions";
+import { createClient } from "@/lib/supabase/client";
+import { generateGameCode } from "@/lib/utils";
 import HowToPlay from "@/components/HowToPlay";
 
 type Mode = "home" | "join";
@@ -31,22 +32,43 @@ export default function LandingPage() {
     setError("");
     saveNickname(nickname.trim());
 
-    const result = await createGame();
-    if ("error" in result) {
-      setError(result.error);
+    // Client-side game creation + join, then navigate
+    const supabase = createClient();
+    let code = "";
+    let gameId = "";
+    for (let attempt = 0; attempt < 5; attempt++) {
+      code = generateGameCode();
+      const { data: game, error: gameError } = await supabase
+        .from("games")
+        .insert({ code })
+        .select("id")
+        .single();
+      if (gameError?.code === "23505") continue;
+      if (gameError || !game) {
+        setError(gameError?.message || "create_failed");
+        setLoading(false);
+        return;
+      }
+      gameId = game.id;
+      break;
+    }
+    if (!gameId) {
+      setError("Could not generate unique game code");
       setLoading(false);
       return;
     }
 
-    const joinResult = await joinGame(result.code, nickname.trim(), clientId);
-    if ("error" in joinResult) {
-      setError(joinResult.error);
-      setLoading(false);
-      return;
+    const { data: player } = await supabase
+      .from("players")
+      .insert({ game_id: gameId, nickname: nickname.trim(), client_id: clientId })
+      .select("id")
+      .single();
+
+    if (player) {
+      localStorage.setItem(`middlegame_player_${code}`, player.id);
     }
 
-    localStorage.setItem(`middlegame_player_${result.code}`, joinResult.playerId);
-    router.push(`/game/${result.code}`);
+    router.push(`/game/${code}`);
   };
 
   const handleJoin = async () => {
@@ -62,16 +84,26 @@ export default function LandingPage() {
     setError("");
     saveNickname(nickname.trim());
 
-    const result = await joinGame(gameCode.trim(), nickname.trim(), clientId);
-    if ("error" in result) {
-      if (result.error === "game_not_found") setError("\u200Fלא נמצא משחק עם הקוד הזה \u{1F937}");
-      else if (result.error === "game_finished") setError("\u200Fהמשחק הזה כבר נגמר");
-      else setError(result.error);
+    // Verify game exists before navigating
+    const supabase = createClient();
+    const { data: game } = await supabase
+      .from("games")
+      .select("status")
+      .eq("code", gameCode.trim())
+      .single();
+
+    if (!game) {
+      setError("\u200Fלא נמצא משחק עם הקוד הזה \u{1F937}");
+      setLoading(false);
+      return;
+    }
+    if (game.status === "finished") {
+      setError("\u200Fהמשחק הזה כבר נגמר");
       setLoading(false);
       return;
     }
 
-    localStorage.setItem(`middlegame_player_${gameCode.trim()}`, result.playerId);
+    // Navigate — game page auto-joins with saved nickname
     router.push(`/game/${gameCode.trim()}`);
   };
 

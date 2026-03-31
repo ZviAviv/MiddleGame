@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { submitWord, generateStartingWords } from "@/lib/game-actions";
+import { submitWord, getAIWordPair } from "@/lib/game-actions";
 import { soundManager } from "@/lib/sounds";
 import { normalizeWord } from "@/lib/utils";
+import { generateRandomWordPair } from "@/lib/similarity";
+import { createClient } from "@/lib/supabase/client";
 
 interface InputAreaProps {
   gameId: string;
@@ -114,13 +116,40 @@ export default function InputArea({
     setGenerating(true);
     soundManager?.play("whoosh");
 
-    const result = await generateStartingWords(gameId, playerId);
-    setGenerating(false);
+    // Race AI generation against a 1.5s timeout; fall back to curated list
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+    const aiPair = await Promise.race([getAIWordPair(), timeout]);
+    const pair = aiPair ?? generateRandomWordPair();
 
-    if ("error" in result) {
-      console.error("Generate words failed:", result.error);
+    // All DB operations client-side (reuses existing Supabase connection)
+    const supabase = createClient();
+
+    const { data: round, error: roundError } = await supabase
+      .from("rounds")
+      .insert({ game_id: gameId, round_number: 1, is_complete: true, similarity_level: 6 })
+      .select()
+      .single();
+
+    if (roundError || !round) {
+      console.error("Generate words failed:", roundError?.message);
+      setGenerating(false);
       return;
     }
+
+    // Insert submissions + update game status in parallel
+    const [subResult] = await Promise.all([
+      supabase.from("submissions").insert([
+        { round_id: round.id, player_id: playerId, word: normalizeWord(pair.word1), word_raw: pair.word1, position: 1 },
+        { round_id: round.id, player_id: playerId, word: normalizeWord(pair.word2), word_raw: pair.word2, position: 2 },
+      ]),
+      supabase.from("games").update({ status: "active" }).eq("id", gameId),
+    ]);
+
+    if (subResult.error) {
+      console.error("Generate words failed:", subResult.error.message);
+    }
+
+    setGenerating(false);
     onSubmitted?.();
   };
 
@@ -156,7 +185,7 @@ export default function InputArea({
         <div className="bg-white/95 backdrop-blur-lg px-3 pt-4 pb-[max(16px,env(safe-area-inset-bottom))]">
           {duplicateError && (
             <p className="text-center text-kahoot-red font-bold text-sm mb-2 animate-bounce-in" dir="rtl">
-              {"\u200F\u05D4\u05DE\u05D9\u05DC\u05D4 \u05DB\u05D1\u05E8 \u05D4\u05D5\u05E4\u05D9\u05E2\u05D4 \u05D1\u05EA\u05D5\u05E8 \u05D4\u05E0\u05D5\u05DB\u05D7\u05D9"}
+              {"\u200F\u05D4\u05DE\u05D9\u05DC\u05D4 \u05DB\u05D1\u05E8 \u05D4\u05D5\u05E4\u05D9\u05E2\u05D4 \u05D1\u05E1\u05D9\u05D1\u05D5\u05D1 \u05D4\u05E0\u05D5\u05DB\u05D7\u05D9"}
             </p>
           )}
           {showGenerateButton && (

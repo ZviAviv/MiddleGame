@@ -2,24 +2,35 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { normalizeWord, generateGameCode } from "@/lib/utils";
-import { computeSimilarityLevel, checkSpellingMatch, generateRandomWordPair } from "@/lib/similarity";
+import { computeSimilarityLevel, checkSpellingMatch, generateAIWordPair, generateRandomWordPair } from "@/lib/similarity";
 import type { SubmitResult } from "@/types/game";
 
-export async function createGame(): Promise<{ code: string } | { error: string }> {
+export async function createAndJoinGame(
+  nickname: string,
+  clientId: string
+): Promise<{ code: string; gameId: string; playerId: string } | { error: string }> {
   const supabase = await createClient();
 
-  // Try up to 5 times to get a unique 4-digit code
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateGameCode();
-    const { data, error } = await supabase
+    const { data: game, error: gameError } = await supabase
       .from("games")
       .insert({ code })
       .select()
       .single();
 
-    if (error?.code === "23505") continue; // unique violation, retry
-    if (error) return { error: error.message };
-    return { code: data.code.trim() };
+    if (gameError?.code === "23505") continue; // unique violation, retry
+    if (gameError || !game) return { error: gameError?.message || "create_failed" };
+
+    const { data: player, error: playerError } = await supabase
+      .from("players")
+      .insert({ game_id: game.id, nickname: nickname.trim(), client_id: clientId })
+      .select()
+      .single();
+
+    if (playerError || !player) return { error: playerError?.message || "join_failed" };
+
+    return { code: game.code.trim(), gameId: game.id, playerId: player.id };
   }
 
   return { error: "Could not generate unique game code" };
@@ -136,62 +147,11 @@ export async function submitWord(
 }
 
 /**
- * Generates two random starting words and inserts them as a complete round.
- * Bypasses the RPC to allow single-player generation (no second player needed yet).
- * The generated round acts as a "seed" — other players can join afterwards.
+ * Server-only: generates a word pair using Gemini AI.
+ * Returns null if AI fails (caller should use fallback list).
  */
-export async function generateStartingWords(
-  gameId: string,
-  creatorPlayerId: string
-): Promise<{ success: true } | { error: string }> {
-  const pair = generateRandomWordPair();
-  const supabase = await createClient();
-
-  // Create round 1
-  const { data: round, error: roundError } = await supabase
-    .from("rounds")
-    .insert({ game_id: gameId, round_number: 1, is_complete: true })
-    .select()
-    .single();
-
-  if (roundError || !round) return { error: roundError?.message || "round_create_failed" };
-
-  // Insert both submissions (both attributed to the creator for generated rounds)
-  const { error: subError } = await supabase
-    .from("submissions")
-    .insert([
-      {
-        round_id: round.id,
-        player_id: creatorPlayerId,
-        word: normalizeWord(pair.word1),
-        word_raw: pair.word1,
-        position: 1,
-      },
-      {
-        round_id: round.id,
-        player_id: creatorPlayerId,
-        word: normalizeWord(pair.word2),
-        word_raw: pair.word2,
-        position: 2,
-      },
-    ]);
-
-  if (subError) return { error: subError.message };
-
-  // Transition game to active
-  await supabase
-    .from("games")
-    .update({ status: "active" })
-    .eq("id", gameId);
-
-  // Compute similarity for the generated round
-  try {
-    await computeSimilarityForRound(supabase, round.id);
-  } catch (err) {
-    console.error("Similarity computation for generated round failed:", err);
-  }
-
-  return { success: true };
+export async function getAIWordPair(): Promise<{ word1: string; word2: string } | null> {
+  return generateAIWordPair();
 }
 
 async function computeSimilarityForRound(

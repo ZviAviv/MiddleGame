@@ -189,6 +189,47 @@ const RANDOM_WORD_PAIRS: [string, string][] = [
   ["\u05DE\u05D2\u05D3\u05DC", "\u05E1\u05D5\u05D3"],       // מגדל / סוד
 ];
 
+const GENERATIVE_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
+/**
+ * Uses Gemini to generate a fresh random Hebrew word pair at far semantic distance.
+ * Falls back to the curated list if the API call fails.
+ */
+export async function generateAIWordPair(): Promise<{ word1: string; word2: string } | null> {
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch(`${GENERATIVE_API_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "תן לי שתי מילות שם עצם בעברית שאין ביניהן קשר ברור — מתחומים שונים לגמרי. כמו: עיפרון, ירח. או: כלב, מזוודה. ענה רק בפורמט: מילה1, מילה2 — ללא הסבר." }] }],
+        generationConfig: { maxOutputTokens: 20, temperature: 1.2 },
+      }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+    if (!text) return null;
+
+    // Split on comma (Hebrew or Latin) or whitespace
+    const parts = text.split(/[,،\s]+/).map((s: string) => s.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+
+    // Validate Hebrew content
+    const hebrewRegex = /[\u05D0-\u05EA]/;
+    if (!hebrewRegex.test(parts[0]) || !hebrewRegex.test(parts[1])) return null;
+
+    return { word1: parts[0], word2: parts[1] };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Returns a random word pair from the curated list.
  * Pairs are at medium semantic distance (level 4-5), interesting for gameplay.
