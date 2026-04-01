@@ -39,9 +39,11 @@ export default function WordPairRow({
   isLatest = false,
   prevSimilarityLevel = null,
 }: WordPairRowProps) {
+  // Always show at most 2 cards per round (word pair game)
   const roundSubs = submissions
     .filter((s) => s.round_id === round.id)
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .slice(0, 2);
 
   const isComplete = round.is_complete;
 
@@ -115,7 +117,7 @@ export default function WordPairRow({
                 />
               </div>
             ))}
-            {roundSubs.length > 0 && (
+            {roundSubs.length > 0 && roundSubs.length < 2 && (
               <div className="shrink-0">
                 <WordCard
                   word={null}

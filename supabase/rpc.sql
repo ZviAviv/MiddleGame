@@ -39,14 +39,9 @@ BEGIN
     RETURN jsonb_build_object('error', 'game_finished');
   END IF;
 
-  -- Count active players: only those who have submitted in a completed round.
-  -- For round 1 (no completed rounds yet), defaults to 2.
-  SELECT COUNT(DISTINCT s.player_id) INTO v_player_count
-  FROM submissions s
-  JOIN rounds r ON r.id = s.round_id
-  WHERE r.game_id = p_game_id AND r.is_complete = true;
-
-  v_player_count := GREATEST(2, v_player_count);
+  -- Always exactly 2 submissions per round (word pair game).
+  -- Extra players wait for the next round.
+  v_player_count := 2;
 
   -- Get the latest round for this game (with lock)
   SELECT * INTO v_current_round
