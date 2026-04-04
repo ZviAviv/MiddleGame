@@ -1,10 +1,14 @@
 // Hebrew niqqud (vowel marks) range
 const NIQQUD_REGEX = /[\u0591-\u05C7]/g;
+// Hebrew geresh (׳), gershayim (״), and ASCII quotes used as gershayim in acronyms
+// e.g. תנ"ך / תנ״ך / תנך should all normalize to תנך
+const GERSHAYIM_REGEX = /[\u05F3\u05F4"'`]/g;
 
 export function normalizeWord(raw: string): string {
   return raw
     .trim()
     .replace(NIQQUD_REGEX, "")
+    .replace(GERSHAYIM_REGEX, "")
     .replace(/\s+/g, " ")
     .toLowerCase();
 }
