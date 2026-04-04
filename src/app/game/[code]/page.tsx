@@ -70,6 +70,28 @@ export default function GamePage() {
       const doAutoJoin = async () => {
         setJoining(true);
         const supabase = createClient();
+
+        // Check if reconnecting (already have a player with this client_id)
+        const { data: existing } = await supabase
+          .from("players")
+          .select("id")
+          .eq("game_id", game.id)
+          .eq("client_id", clientId)
+          .maybeSingle();
+
+        // If not reconnecting, check 2-player limit
+        if (!existing) {
+          const { count } = await supabase
+            .from("players")
+            .select("id", { count: "exact", head: true })
+            .eq("game_id", game.id);
+          if ((count ?? 0) >= 2) {
+            setJoining(false);
+            setError("\u200F\u05D4\u05DE\u05E9\u05D7\u05E7 \u05DE\u05DC\u05D0");
+            return;
+          }
+        }
+
         const { data: player } = await supabase
           .from("players")
           .upsert(
@@ -210,6 +232,28 @@ export default function GamePage() {
     setNickname(nicknameInput.trim());
 
     const supabase = createClient();
+
+    // Check if reconnecting (already have a player with this client_id)
+    const { data: existing } = await supabase
+      .from("players")
+      .select("id")
+      .eq("game_id", game.id)
+      .eq("client_id", clientId)
+      .maybeSingle();
+
+    // If not reconnecting, check 2-player limit
+    if (!existing) {
+      const { count } = await supabase
+        .from("players")
+        .select("id", { count: "exact", head: true })
+        .eq("game_id", game.id);
+      if ((count ?? 0) >= 2) {
+        setError("\u200F\u05D4\u05DE\u05E9\u05D7\u05E7 \u05DE\u05DC\u05D0");
+        setJoining(false);
+        return;
+      }
+    }
+
     const { data: player, error: playerError } = await supabase
       .from("players")
       .upsert(

@@ -39,6 +39,13 @@ BEGIN
     RETURN jsonb_build_object('error', 'game_finished');
   END IF;
 
+  -- Verify this player belongs to the game
+  IF NOT EXISTS (
+    SELECT 1 FROM players WHERE game_id = p_game_id AND id = p_player_id
+  ) THEN
+    RETURN jsonb_build_object('error', 'player_not_in_game');
+  END IF;
+
   -- Always exactly 2 submissions per round (word pair game).
   -- Extra players wait for the next round.
   v_player_count := 2;

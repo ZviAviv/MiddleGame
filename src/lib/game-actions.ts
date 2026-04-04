@@ -53,6 +53,24 @@ export async function joinGame(
   if (gameError || !game) return { error: "game_not_found" };
   if (game.status === "finished") return { error: "game_finished" };
 
+  // Check if this client already has a player in the game (reconnection)
+  const { data: existingPlayer } = await supabase
+    .from("players")
+    .select("id")
+    .eq("game_id", game.id)
+    .eq("client_id", clientId)
+    .maybeSingle();
+
+  // If not reconnecting, check the 2-player limit
+  if (!existingPlayer) {
+    const { count } = await supabase
+      .from("players")
+      .select("id", { count: "exact", head: true })
+      .eq("game_id", game.id);
+
+    if ((count ?? 0) >= 2) return { error: "game_full" };
+  }
+
   // Upsert player (handles reconnection via same client_id)
   const { data: player, error: playerError } = await supabase
     .from("players")
