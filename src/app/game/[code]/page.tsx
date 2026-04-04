@@ -65,8 +65,9 @@ export default function GamePage() {
   }, [nickname]);
 
   // Auto-join if player has a saved nickname but no player ID for this game
+  // Allow joining both lobby and active games (late joiners welcome!)
   useEffect(() => {
-    if (!playerId && !joining && nickname && clientId && game && game.status === "lobby") {
+    if (!playerId && !joining && nickname && clientId && game && game.status !== "finished") {
       const doAutoJoin = async () => {
         setJoining(true);
         const supabase = createClient();
