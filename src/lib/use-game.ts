@@ -236,10 +236,21 @@ export function useGame(gameCode: string, playerId: string | null): UseGameRetur
         ? "lobby"
         : "waiting_for_submissions";
 
+  // Block submissions while the latest round just completed but hasn't been
+  // "revealed" yet (similarity not computed). This prevents a late submitter's
+  // word from accidentally landing in the next round before they see results.
+  // Once similarity_level arrives (or for generated/first rounds), unblock.
+  const isWaitingForReveal =
+    isCurrentRoundComplete &&
+    currentRound != null &&
+    currentRound.similarity_level == null &&
+    !currentRound.is_match;
+
   const canSubmit =
     !!playerId &&
     game?.status !== "finished" &&
-    !hasSubmittedThisRound;
+    !hasSubmittedThisRound &&
+    !isWaitingForReveal;
 
   const currentPlayer = players.find((p) => p.id === playerId) || null;
 
