@@ -486,7 +486,7 @@ export default function GamePage() {
       />
 
       {/* Chat */}
-      {gameId && (
+      {gameId && playerId && (
         <Chat
           gameId={gameId}
           playerId={playerId}
